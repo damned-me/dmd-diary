@@ -15,6 +15,13 @@ Diary keeping utility
 #+end_src
 
 ** TODO INSTALLATION
+To create during installation:
+
+    .dry/
+         storage/  # storage dir
+	     diaries   # ref file
+	     dry.conf  # config file
+
 ** CONFIG
 Paths
 - =~/.config/dry.yml=
