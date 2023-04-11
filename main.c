@@ -1,12 +1,12 @@
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <wait.h>
-/*
+#include <time.h>
 
+/*
 Encryption (encfs)
 https://www.baeldung.com/linux/encrypting-decrypting-directory
 https://linux.die.net/man/1/encfs
@@ -60,7 +60,6 @@ void usages(char *name, COMMAND command) {
 }
 
 void init(char *dname) {
-
   /*
     1. create dir
     2. create reference to diary
@@ -96,6 +95,7 @@ void init(char *dname) {
   printf("Created new diary %s at %s\n", dname, dpath);
 }
 
+typedef enum { ORG, MARKDOWN} FORMAT;
 void newe(char type, char *name) {
   /*
     1. find diary
@@ -110,19 +110,33 @@ void newe(char type, char *name) {
   if(name == NULL)
     name = "damned";
 
+  // Get current date-time
+  time_t timer;
+  char buffer[26];
+  struct tm *tm_info;
+
+  timer = time(NULL);
+  tm_info = localtime(&timer);
+
   // TODO decrypt diary
 
   // TODO path to write
 
-  // TODO dirtree
-  char *path = ".dry/storage";
-  char ep[1024];
-  sprintf(ep, "%s/%s", path, name);
+  // TODO  mkdir dirtree
+  char *storage_path = ".dry/storage";
+  char *file_name = "output";
+
+  char diary_path[1024];
+  char file_path[1024];
+
+  char cmd[1024];
+  char *command;
+
+  sprintf(diary_path, "%s/%s", storage_path, name);
+  sprintf(file_path, "%s/%s", diary_path, file_name);
 
   // create file
   printf("Creating new %s\n", type == 'v' ? "video" : "note");
-  char *command;
-
   if(type == 'v') {
     /*
       Webcam recordings (ffmpeg)
@@ -137,18 +151,62 @@ void newe(char type, char *name) {
       The -vcodec defines the output video codec, since it is an mp4 file it is set to libx264 (H.264)
       Audio should default to AAC so -acodec is not needed.
     */
-    command = "ffmpeg -threads 125 -f pulse -ac 2 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s/%s.mkv 2>/dev/null | ffplay - 2>/dev/null";
+    command = "ffmpeg -threads 125 -f pulse -ac 2 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null";
   }
 
   if(type == 'n') {
+
+    FORMAT fmt = ORG; // TODO: possibile formats: markdown, org
+    FILE *fd;
+    struct stat st = {0};
+
+    // Check if file exists and add date time as header
+    if (stat(file_path, &st) == -1) {
+      printf("Creating file %s\n", file_path);
+      fd = fopen(file_path, "w");
+
+
+      strftime(buffer, 26, "%Y-%m-%d", tm_info);
+
+      // Print to file
+      switch (fmt) {
+      case ORG:
+        fprintf(fd, "* %s\n", buffer);
+        break;
+      case MARKDOWN:
+        fprintf(fd, "# %s\n", buffer);
+        break;
+      default:
+        fprintf(fd, "%s\n", buffer);
+        break;
+      }
+
+      fclose(fd);
+    }
+
+    fd = fopen(file_path, "a");
+    strftime(buffer, 26, "%H:%M:%S", tm_info);
+
+    // Print to file
+    switch (fmt) {
+    case ORG:
+      fprintf(fd, "** %s\n", buffer);
+      break;
+    case MARKDOWN:
+      fprintf(fd, "## %s\n", buffer);
+      break;
+    default:
+      fprintf(fd, "\t%s\n", buffer);
+      break;
+    }
+    fclose(fd);
+
     /* call file and editor */
-    command = "emacsclient %s/%s";
+    command = "emacsclient -t %s.org";
   }
 
-  char ex[1024];
-
-  // create name for file
-  sprintf(ex, command, ep, "output");
+  // cmd
+  sprintf(cmd, command, file_path);
 
   //Execute
   int pid = fork();
@@ -159,12 +217,13 @@ void newe(char type, char *name) {
 
   if(pid == 0) {
     // Child
-    system(ex);
+    system(cmd);
     printf("Written %s\n", "output");
     exit(0);
   }
-  wait(NULL);
 
+  read(0, NULL, 1);
+  kill(pid, SIGTERM);
   // encrypt diary
   // TODO
 }
@@ -204,10 +263,12 @@ void show(char *id, char *dname) {
   sprintf(c4, "file %s | grep Unicode > /dev/null", path);
   sprintf(c3, "file %s | grep Matroska > /dev/null", path);
 
-  if(system(c2) == 0 || system(c4) == 0)
+  if (system(c2) == 0 || system(c4) == 0)
     sprintf(cmd, "less %s", path);
-  if(system(c3) == 0)
+  else if (system(c3) == 0)
     sprintf(cmd, "mpv %s", path);
+  else
+    sprintf(cmd, "xdg-open %s", path);
 
   // Display file
   system(cmd);
