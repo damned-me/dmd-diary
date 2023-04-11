@@ -1,0 +1,33 @@
+* DMD DIARY
+Diary keeping utility
+
+** USAGE
+#+begin_src shell
+  dry init #initialize a path on current directory
+  dry add video # register a video on current diary (now)
+  dry add note # add a text note on current diary (now)
+
+  dry list date/+-timespan/today/yesterday # list entry in specified time span
+
+  dry show id # show note by id
+  dry play id # play video by id
+  dry delete id/date/span #delete entry by id
+#+end_src
+
+** TODO INSTALLATION
+** CONFIG
+Paths
+- =~/.config/dry.yml=
+- =~/dry.yml=
+- =/etc/dry.yml=
+
+#+begin_src yaml
+  path:
+    editor: emacsclient
+    recorder: ffmpeg
+#+end_src
+** TODO DEPENDENCIES
+** FEATURES
+- [TODO] Create delete diary entry
+- [TODO] Manage more than a diary (project diary, daily, public)
+- [TODO] GPG encrypted diary
