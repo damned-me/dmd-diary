@@ -12,6 +12,9 @@ install: all
 	cp .build/$(NAME) /bin/$(NAME)
 	chmod +x /bin/$(NAME)
 
+uninstall: all
+	rm /bin/$(NAME)
+
 run: all
 	.build/$(NAME)
 
