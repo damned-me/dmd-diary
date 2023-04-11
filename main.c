@@ -6,6 +6,7 @@
 #include <wait.h>
 #include <time.h>
 
+#define HOMEPATH ".dry/storage"
 /*
 Encryption (encfs)
 https://www.baeldung.com/linux/encrypting-decrypting-directory
@@ -72,12 +73,12 @@ void init(char *dname) {
     dry.conf  # config file
   */
 
-  char *base_folder = ".dry";
+  char *base_folder = "~/.dry";
   char *diary_folder = "storage";
   char fref[1024];
   char dpath[1024];
 
-  sprintf(dpath, "%s/storage/%s", base_folder, dname);
+  sprintf(dpath, "%s/%s/%s", base_folder, diary_folder, dname);
   sprintf(fref, "%s/diaries.ref", base_folder);
 
   // create dir if not exist
@@ -95,7 +96,7 @@ void init(char *dname) {
   printf("Created new diary %s at %s\n", dname, dpath);
 }
 
-typedef enum { ORG, MARKDOWN} FORMAT;
+typedef enum { ORG, MARKDOWN, TXT } FORMAT;
 void newe(char type, char *name) {
   /*
     1. find diary
@@ -124,8 +125,10 @@ void newe(char type, char *name) {
 
   // TODO  mkdir dirtree
   char *storage_path = ".dry/storage";
-  char *file_name = "output";
+  // filename format: YYYY-MM-DD.ext
 
+  char file_name[16];
+  strftime(file_name, 16, "%Y-%m-%d", tm_info);
   char diary_path[1024];
   char file_path[1024];
 
@@ -155,18 +158,18 @@ void newe(char type, char *name) {
   }
 
   if(type == 'n') {
-
     FORMAT fmt = ORG; // TODO: possibile formats: markdown, org
+
+    strcat(file_path, ".org");
+
     FILE *fd;
     struct stat st = {0};
-
     // Check if file exists and add date time as header
     if (stat(file_path, &st) == -1) {
-      printf("Creating file %s\n", file_path);
-      fd = fopen(file_path, "w");
-
-
       strftime(buffer, 26, "%Y-%m-%d", tm_info);
+      printf("Creating file %s\n", file_path);
+
+      fd = fopen(file_path, "w");
 
       // Print to file
       switch (fmt) {
@@ -176,6 +179,7 @@ void newe(char type, char *name) {
       case MARKDOWN:
         fprintf(fd, "# %s\n", buffer);
         break;
+      case TXT:
       default:
         fprintf(fd, "%s\n", buffer);
         break;
@@ -195,6 +199,7 @@ void newe(char type, char *name) {
     case MARKDOWN:
       fprintf(fd, "## %s\n", buffer);
       break;
+    case TXT:
     default:
       fprintf(fd, "\t%s\n", buffer);
       break;
@@ -202,28 +207,16 @@ void newe(char type, char *name) {
     fclose(fd);
 
     /* call file and editor */
-    command = "emacsclient -t %s.org";
+    command = "emacsclient -t %s";
   }
 
   // cmd
   sprintf(cmd, command, file_path);
 
   //Execute
-  int pid = fork();
-  if(pid < 0) {
-    fprintf(stderr, "Error: fork returned < 0");
-    exit(1);
-  }
 
-  if(pid == 0) {
-    // Child
-    system(cmd);
-    printf("Written %s\n", "output");
-    exit(0);
-  }
-
-  read(0, NULL, 1);
-  kill(pid, SIGTERM);
+  system(cmd);
+  printf("Written %s\n", "output");
   // encrypt diary
   // TODO
 }
@@ -234,7 +227,7 @@ void list(char *name) {
 
   char *c = "exa -hal %s/%s";
   char cmd[1024];
-  sprintf(cmd, c, ".dry/storage", name);
+  sprintf(cmd, c, HOMEPATH, name);
   system(cmd);
 }
 
@@ -248,13 +241,12 @@ void show(char *id, char *dname) {
   char c3[1024];
   char c4[1024];
 
-  sprintf(path, "%s/%s/%s", ".dry/storage", dname, id);
-
+  sprintf(path, "%s/%s/%s", HOMEPATH, dname, id);
   // Check if file exists
   struct stat st = {0};
 
   if (stat(path, &st) == -1) {
-    printf("Error: file not found\n");
+    printf("Error: file not found\n%s\n", path);
     exit(1);
   }
 
@@ -332,5 +324,6 @@ int main(int argc, char *argv[], char *envp[]) {
 	show(argv[i + 1], argv[i + 2]);
     }
   }
+  // usage(HELP);
   return 0;
 }
