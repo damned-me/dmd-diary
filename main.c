@@ -264,7 +264,8 @@ void newe(char type, char *name) {
   // create file
   printf("Creating new %s\n", type == 'v' ? "video" : "note");
   if(type == 'v') {
-    get_time(buffer, "%Y-%m-%d_%H-%M-%S");
+    get_time(file_name, "_%H-%M");
+    strcat(file_path, file_name);
     /*
       Webcam recordings (ffmpeg)
       https://askubuntu.com/questions/1445157/how-to-record-webcam-with-audio-on-ubuntu-22-04-from-cli
@@ -280,7 +281,6 @@ void newe(char type, char *name) {
     */
     strcpy(command, "ffmpeg -threads 125 -f pulse -ac 1 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null");
   }
-
   if(type == 'n') {
     strcat(file_path, ".org");
 
@@ -353,9 +353,28 @@ void list(char *name, char *filter) {
     printf("Error: can't find diary %s\n", name);
     exit(0);
   }
-  char time[26];
-  get_time(time, "%Y/%m/%d");
-  sprintf(path, "%s/%s", dpath, time);
+
+  char tme[26];
+  get_time(tme, "%Y/%m/%d");
+
+  if(filter != NULL && strcmp(filter, "yesterday") == 0){
+    time_t now;
+    struct tm *ts;
+
+    now = time(NULL);
+    ts = localtime(&now);
+    ts->tm_mday--;
+    mktime(ts); /* Normalise ts */
+    strftime(tme, sizeof(tme), "%Y/%m/%d", ts);
+  }
+
+  sprintf(path, "%s/%s", dpath, tme);
+
+  // Check if file exists
+  if (!do_file_exist(path)){
+    printf("Error: no entry for %s in %s\n", filter, path);
+    exit(1);
+  }
 
   sprintf(cmd, c, path);
 
@@ -377,10 +396,21 @@ void show(char *id, char *name) {
     printf("Error: can't find diary %s", name);
     exit(1);
   };
-  char time[26];
-  get_time(time, "%Y/%m/%d");
-  sprintf(path, "%s/%s/%s", dpath, time, id);
+  //char time[26];
+  // get_time(time, "%Y/%m/%d");
 
+  /* TODO: THIS CODE SUCKS */
+  char ch[1024];
+  char *c = ch;
+  strncpy(ch, id, 1024);
+  while(*c++) {
+    if(*c == '-') *c = '/';
+    if(*c == '.') *c = '\0';
+    if(*c == '_') *c = '\0';
+  }
+  /* ----- */
+
+  sprintf(path, "%s/%s/%s", dpath, ch, id);
   // Check if file exists
   if (!do_file_exist(path)){
     printf("Error: file not found %s\n", path);
@@ -399,6 +429,7 @@ void show(char *id, char *name) {
   else
     sprintf(cmd, "xdg-open %s", path);
 
+  printf(cmd);
   // Display file
   system(cmd);
 }
@@ -407,6 +438,7 @@ void show(char *id, char *name) {
 
 int main(int argc, char *argv[], char *envp[]) {
   char *dname = NULL;
+  char *filter = NULL;
   char *path = NULL;
   if (argc < 2)
     usage(HELP);
@@ -443,15 +475,15 @@ int main(int argc, char *argv[], char *envp[]) {
       perror("Error: wrong type\n");
 
   } else if (strcmp(argv[1], "list") == 0) {
-    char *filter = NULL;
     // Get diary or default
-    if (argc > 5)
+    if (argc > 4)
       usage(LIST);
 
-    if (argc > 2)
-      dname = argv[2];
     if (argc > 3)
-      filter = argv[3];
+      dname = argv[3];
+
+    if (argc > 2)
+      filter = argv[2];
 
     list(dname, filter);
   } else if (strcmp(argv[1], "show") == 0) {
