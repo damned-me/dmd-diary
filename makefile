@@ -9,11 +9,16 @@ all: $(NAME)
 .PHONY: all
 
 install: all
+	echo "default_diary = diary\ntext_editor = emacsclient -t\nvideo_player = mpv\ndefault_dir = ~/.dry/storage	" > /etc/dry.conf
+	mkdir ~/.dry/storage -p
+	touch ~/.dry/dry.conf
+	touch ~/.dry/diaries.ref
 	cp .build/$(NAME) /bin/$(NAME)
 	chmod +x /bin/$(NAME)
 
 uninstall: all
 	rm /bin/$(NAME)
+	rm /etc/dry.conf
 
 run: all
 	.build/$(NAME)
