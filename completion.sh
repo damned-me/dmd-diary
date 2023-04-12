@@ -8,12 +8,12 @@ _dry()
     case ${COMP_CWORD} in
 	1)
 	    # Base-level completion: show subcommands
-	    COMPREPLY=($(compgen -W "new list show init" -- ${cur}))
+	    COMPREPLY=($(compgen -W "new list show init delete" -- ${cur}))
 	    ;;
 	2)
 	    # Inner completion
 	    case ${prev} in
-		show)
+		show|delete)
 		    COMPREPLY=($(compgen -C "ls ~/.dry/storage/damned/$(date '+%Y/%m/%d')" -- ${cur}))
 		    COMPREPLY+=($(compgen -C "ls ~/.dry/storage/damned/$(date -d 'yesterday' '+%Y/%m/%d')" -- ${cur}))
 		    #COMPREPLY+=("$(date -d 'today 0' "+%a %b %e %T %Z %Y")")

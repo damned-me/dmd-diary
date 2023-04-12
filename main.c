@@ -13,6 +13,9 @@ typedef struct {
   char *player;
 } CONFIG;
 
+typedef enum { HELP, LIST, SHOW, NEW, INIT, DELETE } COMMAND;
+typedef enum { ORG, MARKDOWN, TXT } FORMAT;
+
 int do_file_exist(char *path) {
   struct stat st = {0};
   return !stat(path, &st);
@@ -138,7 +141,6 @@ IDEAS
 - Build a buckets hash list using directory of encfs
   Save reference as hash (id)
 */
-typedef enum { HELP, LIST, SHOW, NEW, INIT } COMMAND;
 void usages(char *name, COMMAND command) {
   switch(command) {
   case LIST:
@@ -157,16 +159,18 @@ void usages(char *name, COMMAND command) {
     fprintf(stderr, "Error, additional arguments required\n");
     printf("Usage: %s init <name> [<path>]\n", name);
     break;
+  case DELETE:
+    fprintf(stderr, "Error, additional arguments required\n");
+    printf("Usage: %s delete <id> <name>\n", name);
   case HELP:
   default:
     printf("Usage: %s [-v | --version] [-h | --help] <command> [<args>]\n", name);
     printf("\nCOMMANDS\n");
-    printf("\tinit\t\t\tInitialize a new diary\n");
+    printf("\tinit <name> [<path>]\tInitialize a new diary\n");
     printf("\tnew <note|video>\tAdd a note or a video with current date-time\n");
     printf("\tshow <date|id>\t\tShow entries for specified date or id\n");
-    printf("\tlist <date|date-span>\tlist entries for specified date span\n");
-    printf("\tplay <id>\t\tPlay specified video\n");
-    printf("\tdelete <id>\t\tDelete specified entry\n");
+    printf("\tlist <date|date-span>\tList entries for specified date span\n");
+    printf("\tdelete <id> <name>\tDelete specified entry\n");
     break;
   }
   exit(1);
@@ -217,7 +221,6 @@ void init(char *name, char *dpath) {
   printf("Created new diary %s at %s\n", name, path);
 }
 
-typedef enum { ORG, MARKDOWN, TXT } FORMAT;
 void newe(char type, char *name) {
   /*
     1. find diary
@@ -405,8 +408,7 @@ void show(char *id, char *name) {
   strncpy(ch, id, 1024);
   while(*c++) {
     if(*c == '-') *c = '/';
-    if(*c == '.') *c = '\0';
-    if(*c == '_') *c = '\0';
+    if(*c == '.' || *c == '_') *c = '\0';
   }
   /* ----- */
 
@@ -434,6 +436,48 @@ void show(char *id, char *name) {
   system(cmd);
 }
 
+void delete(char *id, char *name){
+  char dpath[1024];
+  char path[1024];
+  char cmd[1024];
+  char c2[1024];
+  char c3[1024];
+  char c4[1024];
+
+  if(name == NULL)
+    name = get_config()->name;
+
+  if(get_path_by_name(name, dpath)) {
+    printf("Error: can't find diary %s", name);
+    exit(1);
+  };
+  //char time[26];
+  // get_time(time, "%Y/%m/%d");
+
+  /* TODO: THIS CODE SUCKS */
+  char ch[1024];
+  char *c = ch;
+  strncpy(ch, id, 1024);
+  while(*c++) {
+    if(*c == '-') *c = '/';
+    if(*c == '.' || *c == '_') *c = '\0';
+  }
+  /* ----- */
+
+  sprintf(path, "%s/%s/%s", dpath, ch, id);
+  // Check if file exists
+  if (!do_file_exist(path)){
+    printf("Error: file not found %s\n", path);
+    exit(1);
+  }
+
+  printf("Deleting %s", path);
+
+  sprintf(cmd, "rm %s", path);
+
+  // Display file
+  system(cmd);
+}
 #define usage(T) usages(argv[0], (T))
 
 int main(int argc, char *argv[], char *envp[]) {
@@ -494,6 +538,13 @@ int main(int argc, char *argv[], char *envp[]) {
       dname = argv[3];
 
     show(argv[2], dname);
+  } else if (strcmp(argv[1], "delete") == 0) {
+    if (argc < 4)
+      usage(DELETE);
+
+    dname = argv[3];
+
+    delete(argv[2], dname);
   }
   if (conf != NULL)
     free(conf);
