@@ -13,12 +13,14 @@ install: all
 	mkdir ~/.dry/storage -p
 	touch ~/.dry/dry.conf
 	touch ~/.dry/diaries.ref
+	cp ./completion.sh /etc/bash_completion.d/dry
 	cp .build/$(NAME) /bin/$(NAME)
 	chmod +x /bin/$(NAME)
 
 uninstall: all
 	rm /bin/$(NAME)
 	rm /etc/dry.conf
+	rm /etc/bash_completion.d/dry
 
 run: all
 	.build/$(NAME)
