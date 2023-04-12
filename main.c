@@ -71,8 +71,7 @@ void get_ref_path(char *path) {
 
 CONFIG *conf = NULL;
 CONFIG *get_config() {
-  char path[1024];
-  char name[1024], value[1024];
+  char path[1024], name[1024], value[1024];
 
   if (conf == NULL)
     conf = malloc(sizeof(CONFIG));
@@ -192,12 +191,10 @@ void init(char *name, char *dpath) {
     dpath = get_config()->path;
 
   // check if already exist
-  if(!get_path_by_name(name, path))
-    {
-      printf("Diary already exist at %s\n", path);
-      exit(1);
-    }
-
+  if (!get_path_by_name(name, path)) {
+    printf("Diary already exist at %s\n", path);
+    exit(1);
+  }
 
   sprintf(path, "%s/%s", dpath, name);
 
@@ -228,50 +225,45 @@ void newe(char type, char *name) {
     3. create file
     4. encrypt diary
   */
+  // filename format: YYYY-MM-DD.ext
+  char buffer[26];
+  char file_path[1024];
+  char file_name[26];
+  char cmd[1024];
+  char command[1024];
+  char path[1024];
+  FILE *fd;
+  FORMAT fmt = ORG; // TODO: possibile formats: markdown, org
 
   // Find diary or default if null
   // set default diary name
   if(name == NULL)
     name = get_config()->name;
 
-  char path[1024];
   if(get_path_by_name(name, path) != 0) {
-    printf("Error: can't find diary %s", name);
+    printf("Error: can't find diary %s\n", name);
+    exit(1);
   };
 
   // Get current date-time
-  /* time_t timer; */
-  char buffer[26];
-  /* struct tm *tm_info; */
-
-  /* timer = time(NULL); */
-  /* tm_info = localtime(&timer); */
-
   // TODO decrypt diary
 
   // TODO path to write
 
   // TODO  mkdir dirtree
-  //char *storage_path = get_config()->path;
-  // filename format: YYYY-MM-DD.ext
-  char file_name[26];
-  /* strftime(file_name, 16, "%Y-%m-%d", tm_info); */
+  char mkdr[1024];
+  char tmp[1024];
+  get_time(file_name, "%Y/%m/%d");
+  get_path_by_name(name, tmp);
+  sprintf(mkdr, "mkdir -p %s/%s", tmp, file_name);
+  system(mkdr);
 
-  get_time(file_name, "%Y-%m-%d");
-  //char diary_path[1024];
-  char file_path[1024];
+  get_time(tmp, "%Y-%m-%d");
 
-  char cmd[1024];
-  char command[1024];
-
-  //sprintf(diary_path, "%s/%s", storage_path, name);
-  sprintf(file_path, "%s/%s", path, file_name);
-
+  sprintf(file_path, "%s/%s/%s", path, file_name, tmp);
   // create file
   printf("Creating new %s\n", type == 'v' ? "video" : "note");
   if(type == 'v') {
-    /* strftime(buffer, 26, "%Y-%m-%d_%H-%M-%S", tm_info); */
-    /* strcat(file_name, buffer); */
     get_time(buffer, "%Y-%m-%d_%H-%M-%S");
     /*
       Webcam recordings (ffmpeg)
@@ -290,15 +282,10 @@ void newe(char type, char *name) {
   }
 
   if(type == 'n') {
-    FORMAT fmt = ORG; // TODO: possibile formats: markdown, org
-
     strcat(file_path, ".org");
-
-    FILE *fd;
 
     // Check if file exists and add date time as header
     if (!do_file_exist(file_path)) {
-      /* strftime(buffer, 26, "%Y-%m-%d", tm_info); */
       get_time(buffer, "%Y-%m-%d");
       printf("Creating file %s\n", file_path);
 
@@ -322,7 +309,6 @@ void newe(char type, char *name) {
     }
 
     fd = fopen(file_path, "a");
-    /* strftime(buffer, 26, "%H:%M:%S", tm_info); */
     get_time(buffer, "%H:%M:%S");
 
     // Print to file
@@ -354,18 +340,22 @@ void newe(char type, char *name) {
   // TODO
 }
 
-void list(char *name) {
+void list(char *name, char *filter) {
   char cmd[1024];
+  char dpath[1024];
   char path[1024];
   char *c = "exa -hal %s";
 
-  if(name == NULL)
+  if (name == NULL)
     name = get_config()->name;
 
-  if(get_path_by_name(name, path) != 0) {
+  if (get_path_by_name(name, dpath)) {
     printf("Error: can't find diary %s\n", name);
     exit(0);
-  };
+  }
+  char time[26];
+  get_time(time, "%Y/%m/%d");
+  sprintf(path, "%s/%s", dpath, time);
 
   sprintf(cmd, c, path);
 
@@ -375,6 +365,10 @@ void list(char *name) {
 void show(char *id, char *name) {
   char dpath[1024];
   char path[1024];
+  char cmd[1024];
+  char c2[1024];
+  char c3[1024];
+  char c4[1024];
 
   if(name == NULL)
     name = get_config()->name;
@@ -383,13 +377,9 @@ void show(char *id, char *name) {
     printf("Error: can't find diary %s", name);
     exit(1);
   };
-
-  char cmd[1024];
-  char c2[1024];
-  char c3[1024];
-  char c4[1024];
-
-  sprintf(path, "%s/%s", dpath, id);
+  char time[26];
+  get_time(time, "%Y/%m/%d");
+  sprintf(path, "%s/%s/%s", dpath, time, id);
 
   // Check if file exists
   if (!do_file_exist(path)){
@@ -446,7 +436,6 @@ int main(int argc, char *argv[], char *envp[]) {
     else if (strcmp(argv[2], "note") == 0)
       type = 'n';
 
-
     // Call new if type is set
     if (type)
       newe(type, dname);
@@ -454,14 +443,17 @@ int main(int argc, char *argv[], char *envp[]) {
       perror("Error: wrong type\n");
 
   } else if (strcmp(argv[1], "list") == 0) {
+    char *filter = NULL;
     // Get diary or default
-    if (argc > 4)
+    if (argc > 5)
       usage(LIST);
 
     if (argc > 2)
       dname = argv[2];
+    if (argc > 3)
+      filter = argv[3];
 
-    list(dname);
+    list(dname, filter);
   } else if (strcmp(argv[1], "show") == 0) {
     if (argc < 3)
       usage(SHOW);
@@ -471,8 +463,8 @@ int main(int argc, char *argv[], char *envp[]) {
 
     show(argv[2], dname);
   }
-  // usage(HELP);
   if (conf != NULL)
     free(conf);
-  return 0;
+
+  exit(0);
 }
