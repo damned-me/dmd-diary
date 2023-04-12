@@ -3,10 +3,123 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <wait.h>
 #include <time.h>
+#include <pwd.h>
 
-#define HOMEPATH ".dry/storage"
+typedef struct {
+  char *name;
+  char *path;
+  char *editor;
+  char *player;
+} CONFIG;
+
+int do_file_exist(char *path) {
+  struct stat st = {0};
+  return !stat(path, &st);
+}
+
+size_t get_time(char *buffer, char *fmt) {
+  time_t timer;
+  struct tm *tm_info;
+
+  timer = time(NULL);
+  tm_info = localtime(&timer);
+
+  return strftime(buffer, 26, fmt, tm_info);
+}
+
+void get_conf_path(char *path) {
+  // Get home path
+  struct passwd *pw = getpwuid(getuid());
+  const char *homedir = pw->pw_dir;
+
+  // .dry/dry.conf
+  sprintf(path, ".dry/dry.conf");
+  if (!do_file_exist(path)) {
+    sprintf(path, "%s/.dry/dry.conf", homedir);
+    // ~/.dry/dry.conf
+    if (!do_file_exist(path)) {
+      sprintf(path, "/etc/%s", "dry.conf");
+      // /etc/dry.conf
+      if (!do_file_exist(path)) {
+        fprintf(stderr, "Error: can't find config file");
+        fprintf(stderr,
+                "Create config file in\n~/.dry/dry.conf\n/etc/dry.conf");
+        exit(1);
+      }
+    }
+  }
+}
+
+void get_ref_path(char *path) {
+  // Get home path
+  struct passwd *pw = getpwuid(getuid());
+  const char *homedir = pw->pw_dir;
+
+  // .dry/dry.conf
+  sprintf(path, ".dry/diaries.ref");
+  if (!do_file_exist(path)) {
+    sprintf(path, "%s/.dry/diaries.ref", homedir);
+    // ~/.dry/dry.conf
+    if (!do_file_exist(path)) {
+      fprintf(stderr, "Error: can't find config file");
+      fprintf(stderr, "Create config file in\n~/.dry/.conf\n/etc/dry.conf");
+      exit(1);
+    }
+  }
+}
+
+CONFIG *conf = NULL;
+CONFIG *get_config() {
+  char path[1024];
+  char name[1024], value[1024];
+
+  if (conf == NULL)
+    conf = malloc(sizeof(CONFIG));
+
+  get_conf_path(path);
+
+  FILE *fd = fopen(path, "r");
+  while (fscanf(fd, "%s = %[^\n]%*c", name, value) == 2) {
+    // printf("%s:%s\n", name, value);
+    size_t len = strlen(value);
+    if (strcmp(name, "default_diary") == 0) {
+      conf->name = calloc(len, sizeof(char));
+      strncpy(conf->name, value, len);
+    } else if (strcmp(name, "text_editor") == 0) {
+      conf->editor = calloc(len, sizeof(char));
+      strncpy(conf->editor, value, len);
+    } else if (strcmp(name, "video_player") == 0) {
+      conf->player = calloc(len, sizeof(char));
+      strncpy(conf->player, value, len);
+    } else if (strcmp(name, "default_dir") == 0) {
+      conf->path = calloc(len, sizeof(char));
+      strncpy(conf->path, value, len);
+    }
+  }
+  return conf;
+}
+
+int get_path_by_name(char *dname, char *path) {
+  FILE *fd;
+  char rpath[1024];
+  char name[512];
+  char value[1024];
+
+  get_ref_path(rpath);
+
+  fd = fopen(rpath, "r");
+  while (fscanf(fd, "%s : %s", name, value) > 0) {
+    if (strcmp(name, dname) == 0) {
+      strcpy(path, value);
+      fclose(fd);
+      return 0;
+    }
+  }
+  fclose(fd);
+  return 1;
+}
+
 /*
 Encryption (encfs)
 https://www.baeldung.com/linux/encrypting-decrypting-directory
@@ -30,20 +143,20 @@ typedef enum { HELP, LIST, SHOW, NEW, INIT } COMMAND;
 void usages(char *name, COMMAND command) {
   switch(command) {
   case LIST:
+    fprintf(stderr, "Error: too many arguments!\n");
     printf("Usage: %s list [<today|yesterday|tomorrow|date> [<name>]]\n", name);
-    fprintf(stderr, "Error: too many arguments!");
     break;
   case SHOW:
-    printf("Usage: %s show <id> [<name>]\n", name);
     fprintf(stderr, "Error: additional arguments required\n");
+    printf("Usage: %s show <id> [<name>]\n", name);
     break;
   case NEW:
-    printf("Usage: %s new <video|note> [<name>]\n", name);
     fprintf(stderr, "Error: additional arguments required\n");
+    printf("Usage: %s new <video|note> [<name>]\n", name);
     break;
   case INIT:
-    printf("Usage: %s init <name> [<path>]\n", name);
     fprintf(stderr, "Error, additional arguments required\n");
+    printf("Usage: %s init <name> [<path>]\n", name);
     break;
   case HELP:
   default:
@@ -60,7 +173,7 @@ void usages(char *name, COMMAND command) {
   exit(1);
 }
 
-void init(char *dname) {
+void init(char *name, char *dpath) {
   /*
     1. create dir
     2. create reference to diary
@@ -68,32 +181,43 @@ void init(char *dname) {
     4. create encrypted fs
 
     .dry/
-    storage/  # storage dir
-    diaries   # ref file
-    dry.conf  # config file
+    storage/      # storage dir
+    diaries.ref   # ref file
+    dry.conf      # config file
   */
-
-  char *base_folder = "~/.dry";
-  char *diary_folder = "storage";
   char fref[1024];
-  char dpath[1024];
+  char path[1024];
 
-  sprintf(dpath, "%s/%s/%s", base_folder, diary_folder, dname);
-  sprintf(fref, "%s/diaries.ref", base_folder);
+  if(dpath == NULL)
+    dpath = get_config()->path;
+
+  // check if already exist
+  if(!get_path_by_name(name, path))
+    {
+      printf("Diary already exist at %s\n", path);
+      exit(1);
+    }
+
+
+  sprintf(path, "%s/%s", dpath, name);
 
   // create dir if not exist
-  struct stat st = {0};
-
-  if (stat(dpath, &st) == -1) {
-    mkdir(dpath, 0700);
+  if (!do_file_exist(path))
+    mkdir(path, 0700);
+  else {
+    char c;
+    printf("Diary dir already exist at %s\nWould you like to add a reference to it? [y/N]\n", path);
+    scanf("%c", &c);
+    if(c != 'y' && c != 'Y')
+      exit(1);
   }
-  else { printf("Diary already exist at %s\n", dpath); }
 
-  // add reference to reference file for new diary
+  // add reference to diary to ref file
+  get_ref_path(fref);
   FILE *fd = fopen(fref, "a");
-  fprintf(fd, "%s;%s\n", dname, dpath);
+  fprintf(fd, "%s : %s\n", name, path);
 
-  printf("Created new diary %s at %s\n", dname, dpath);
+  printf("Created new diary %s at %s\n", name, path);
 }
 
 typedef enum { ORG, MARKDOWN, TXT } FORMAT;
@@ -106,41 +230,49 @@ void newe(char type, char *name) {
   */
 
   // Find diary or default if null
-
-  // set default
+  // set default diary name
   if(name == NULL)
-    name = "damned";
+    name = get_config()->name;
+
+  char path[1024];
+  if(get_path_by_name(name, path) != 0) {
+    printf("Error: can't find diary %s", name);
+  };
 
   // Get current date-time
-  time_t timer;
+  /* time_t timer; */
   char buffer[26];
-  struct tm *tm_info;
+  /* struct tm *tm_info; */
 
-  timer = time(NULL);
-  tm_info = localtime(&timer);
+  /* timer = time(NULL); */
+  /* tm_info = localtime(&timer); */
 
   // TODO decrypt diary
 
   // TODO path to write
 
   // TODO  mkdir dirtree
-  char *storage_path = ".dry/storage";
+  //char *storage_path = get_config()->path;
   // filename format: YYYY-MM-DD.ext
+  char file_name[26];
+  /* strftime(file_name, 16, "%Y-%m-%d", tm_info); */
 
-  char file_name[16];
-  strftime(file_name, 16, "%Y-%m-%d", tm_info);
-  char diary_path[1024];
+  get_time(file_name, "%Y-%m-%d");
+  //char diary_path[1024];
   char file_path[1024];
 
   char cmd[1024];
-  char *command;
+  char command[1024];
 
-  sprintf(diary_path, "%s/%s", storage_path, name);
-  sprintf(file_path, "%s/%s", diary_path, file_name);
+  //sprintf(diary_path, "%s/%s", storage_path, name);
+  sprintf(file_path, "%s/%s", path, file_name);
 
   // create file
   printf("Creating new %s\n", type == 'v' ? "video" : "note");
   if(type == 'v') {
+    /* strftime(buffer, 26, "%Y-%m-%d_%H-%M-%S", tm_info); */
+    /* strcat(file_name, buffer); */
+    get_time(buffer, "%Y-%m-%d_%H-%M-%S");
     /*
       Webcam recordings (ffmpeg)
       https://askubuntu.com/questions/1445157/how-to-record-webcam-with-audio-on-ubuntu-22-04-from-cli
@@ -154,7 +286,7 @@ void newe(char type, char *name) {
       The -vcodec defines the output video codec, since it is an mp4 file it is set to libx264 (H.264)
       Audio should default to AAC so -acodec is not needed.
     */
-    command = "ffmpeg -threads 125 -f pulse -ac 2 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null";
+    strcpy(command, "ffmpeg -threads 125 -f pulse -ac 1 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null");
   }
 
   if(type == 'n') {
@@ -163,10 +295,11 @@ void newe(char type, char *name) {
     strcat(file_path, ".org");
 
     FILE *fd;
-    struct stat st = {0};
+
     // Check if file exists and add date time as header
-    if (stat(file_path, &st) == -1) {
-      strftime(buffer, 26, "%Y-%m-%d", tm_info);
+    if (!do_file_exist(file_path)) {
+      /* strftime(buffer, 26, "%Y-%m-%d", tm_info); */
+      get_time(buffer, "%Y-%m-%d");
       printf("Creating file %s\n", file_path);
 
       fd = fopen(file_path, "w");
@@ -189,7 +322,8 @@ void newe(char type, char *name) {
     }
 
     fd = fopen(file_path, "a");
-    strftime(buffer, 26, "%H:%M:%S", tm_info);
+    /* strftime(buffer, 26, "%H:%M:%S", tm_info); */
+    get_time(buffer, "%H:%M:%S");
 
     // Print to file
     switch (fmt) {
@@ -207,14 +341,13 @@ void newe(char type, char *name) {
     fclose(fd);
 
     /* call file and editor */
-    command = "emacsclient -t %s";
+    sprintf(command, "%s %%s", get_config()->editor);
   }
 
-  // cmd
   sprintf(cmd, command, file_path);
+  puts(cmd);
 
   //Execute
-
   system(cmd);
   printf("Written %s\n", "output");
   // encrypt diary
@@ -222,31 +355,45 @@ void newe(char type, char *name) {
 }
 
 void list(char *name) {
-  if(name == NULL)
-    name = "damned";
-
-  char *c = "exa -hal %s/%s";
   char cmd[1024];
-  sprintf(cmd, c, HOMEPATH, name);
+  char path[1024];
+  char *c = "exa -hal %s";
+
+  if(name == NULL)
+    name = get_config()->name;
+
+  if(get_path_by_name(name, path) != 0) {
+    printf("Error: can't find diary %s\n", name);
+    exit(0);
+  };
+
+  sprintf(cmd, c, path);
+
   system(cmd);
 }
 
-void show(char *id, char *dname) {
-  if(dname == NULL)
-    dname = "damned";
-
+void show(char *id, char *name) {
+  char dpath[1024];
   char path[1024];
+
+  if(name == NULL)
+    name = get_config()->name;
+
+  if(get_path_by_name(name, dpath)) {
+    printf("Error: can't find diary %s", name);
+    exit(1);
+  };
+
   char cmd[1024];
   char c2[1024];
   char c3[1024];
   char c4[1024];
 
-  sprintf(path, "%s/%s/%s", HOMEPATH, dname, id);
-  // Check if file exists
-  struct stat st = {0};
+  sprintf(path, "%s/%s", dpath, id);
 
-  if (stat(path, &st) == -1) {
-    printf("Error: file not found\n%s\n", path);
+  // Check if file exists
+  if (!do_file_exist(path)){
+    printf("Error: file not found %s\n", path);
     exit(1);
   }
 
@@ -258,7 +405,7 @@ void show(char *id, char *dname) {
   if (system(c2) == 0 || system(c4) == 0)
     sprintf(cmd, "less %s", path);
   else if (system(c3) == 0)
-    sprintf(cmd, "mpv %s", path);
+    sprintf(cmd, "%s %s", get_config()->player, path);
   else
     sprintf(cmd, "xdg-open %s", path);
 
@@ -270,60 +417,62 @@ void show(char *id, char *dname) {
 
 int main(int argc, char *argv[], char *envp[]) {
   char *dname = NULL;
-
+  char *path = NULL;
   if (argc < 2)
     usage(HELP);
 
-  for (int i = 0; i < argc; i++) {
-    if (strcmp(argv[i], "init") == 0) {
-      if (argc < i + 1) {
-	usage(INIT);
-      } else
-        init(argv[++i]);
+  if (strcmp(argv[1], "init") == 0) {
+    if (argc < 3) {
+      usage(INIT);
+    } else {
+      if (argc > 3)
+        path = argv[3];
+
+      init(argv[2], path);
     }
+  } else if (strcmp(argv[1], "new") == 0) {
+    if (argc < 3)
+      usage(NEW);
 
-    else if (strcmp(argv[i], "new") == 0) {
-      if (argc < i + 1) {
-	usage(NEW);
-      } else {
-	// Check type
-        char type = 0;
+    // Get diary or default
+    if (argc > 3)
+      dname = argv[3];
 
-        if (strcmp(argv[i + 1], "video") == 0)
-          type = 'v';
-        else if (strcmp(argv[i + 1], "note") == 0)
-          type = 'n';
+    // Check type
+    char type = 0;
 
-	// Get diary or default
-	if(argc > 3)
-	  dname = argv[3];
+    if (strcmp(argv[2], "video") == 0)
+      type = 'v';
+    else if (strcmp(argv[2], "note") == 0)
+      type = 'n';
 
-	// Call new if type is set
-        if (type)
-          newe(type, dname);
-        else
-          perror("Error: wrong type\n");
-      }
-      break;
-    }
-    else if (strcmp(argv[i], "list") == 0) {
-      // Get diary or default
-      if(argc > 4) {
-	usage(LIST);
-      }
 
-      if(argc > 2)
-	dname = argv[2];
+    // Call new if type is set
+    if (type)
+      newe(type, dname);
+    else
+      perror("Error: wrong type\n");
 
-      list(dname);
-    }
-    else if (strcmp(argv[i], "show") == 0) {
-      if (argc < i + 2) {
-	usage(SHOW);
-      } else
-	show(argv[i + 1], argv[i + 2]);
-    }
+  } else if (strcmp(argv[1], "list") == 0) {
+    // Get diary or default
+    if (argc > 4)
+      usage(LIST);
+
+    if (argc > 2)
+      dname = argv[2];
+
+    list(dname);
+  } else if (strcmp(argv[1], "show") == 0) {
+    if (argc < 3)
+      usage(SHOW);
+
+    if(argc > 3)
+      dname = argv[3];
+
+    show(argv[2], dname);
   }
   // usage(HELP);
+  if (conf != NULL)
+    free(conf);
   return 0;
 }
