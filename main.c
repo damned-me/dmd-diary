@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <time.h>
 #include <pwd.h>
+#include <libconfig.h>
+
+#define usage(T) usages(argv[0], (T))
 
 typedef struct {
   char *name;
@@ -72,6 +75,8 @@ void get_ref_path(char *path) {
   }
 }
 
+// TODO hardener this function
+// ref: https://stackoverflow.com/a/48414714
 CONFIG *conf = NULL;
 CONFIG *get_config() {
   char path[1024], name[1024], value[1024];
@@ -121,26 +126,6 @@ int get_path_by_name(char *dname, char *path) {
   fclose(fd);
   return 1;
 }
-
-/*
-Encryption (encfs)
-https://www.baeldung.com/linux/encrypting-decrypting-directory
-https://linux.die.net/man/1/encfs
-
-Create
-$ echo "password" | encfs --standard --stdinpass ~/encrypted
-~/unencrypted
-
-Open
-$ echo "password" | encfs --sdinpass ~/encrypted ~/unencrypted
-
-Close
-$ fusermount -u ~/unencrypted
-
-IDEAS
-- Build a buckets hash list using directory of encfs
-  Save reference as hash (id)
-*/
 void usages(char *name, COMMAND command) {
   switch(command) {
   case LIST:
@@ -175,6 +160,49 @@ void usages(char *name, COMMAND command) {
   }
   exit(1);
 }
+/*
+Encryption (encfs)
+https://www.baeldung.com/linux/encrypting-decrypting-directory
+https://linux.die.net/man/1/encfs
+
+Create                      mode                        /encr            /decr
+$ echo "password" | encfs --paranoia --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
+
+Open
+$ echo "password" | encfs --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
+
+Close
+$ fusermount -u ~/.dry/storage/%s
+
+IDEAS
+- Build a buckets hash list using directory of encfs
+  Save reference as hash (id)
+*/
+
+void encdiary(int opcl, char *name, char *path){
+  char *fcmd;
+  char cmd[2048];
+  if(name == NULL)
+    name = get_config()->name;
+
+  if(path == NULL)
+    path = get_config()->path;
+
+  if (!opcl) {
+    char password[1024];
+    fcmd =
+        "encfs %s/.%s %s/%s";
+    sprintf(cmd, fcmd, path, name, path, name);
+  }
+  else {
+    fcmd =
+        "fusermount -u %s/%s";
+    sprintf(cmd, fcmd, path, name);
+    /* puts(cmd); */
+  }
+  system(cmd);
+}
+
 
 void init(char *name, char *dpath) {
   /*
@@ -190,11 +218,12 @@ void init(char *name, char *dpath) {
   */
   char fref[1024];
   char path[1024];
+  char cmd[1024];
 
   if(dpath == NULL)
     dpath = get_config()->path;
 
-  // check if already exist
+  /* check if already exist */
   if (!get_path_by_name(name, path)) {
     printf("Diary already exist at %s\n", path);
     exit(1);
@@ -202,23 +231,30 @@ void init(char *name, char *dpath) {
 
   sprintf(path, "%s/%s", dpath, name);
 
-  // create dir if not exist
-  if (!do_file_exist(path))
-    mkdir(path, 0700);
-  else {
-    char c;
-    printf("Diary dir already exist at %s\nWould you like to add a reference to it? [y/N]\n", path);
-    scanf("%c", &c);
-    if(c != 'y' && c != 'Y')
-      exit(1);
-  }
+  /* create enc fs if not exist */
+  /* if (!do_file_exist(path)){ */
+    //mkdir(path, 0700);
+  sprintf(cmd, "encfs --paranoia %s/.%s %s/%s", dpath, name, dpath, name);
+  system(cmd);
+  /* } */
+  /* else { */
+  /*   char c; */
+  /*   printf("Directory already exist at %s and it may not be empty\n" */
+  /*          "Would you like to add a reference to it? [y/N]\n", */
+  /*          path); */
+  /*   scanf("%c", &c); */
+  /*   if (c != 'y' && c != 'Y') */
+  /*     exit(1); */
+  /* } */
 
-  // add reference to diary to ref file
+  /* add reference to diary to ref file */
   get_ref_path(fref);
   FILE *fd = fopen(fref, "a");
   fprintf(fd, "%s : %s\n", name, path);
 
   printf("Created new diary %s at %s\n", name, path);
+
+  encdiary(1, name, dpath);
 }
 
 void newe(char type, char *name) {
@@ -235,6 +271,9 @@ void newe(char type, char *name) {
   char cmd[1024];
   char command[1024];
   char path[1024];
+  char mkdr[1024];
+  char tmp[1024];
+
   FILE *fd;
   FORMAT fmt = ORG; // TODO: possibile formats: markdown, org
 
@@ -243,19 +282,18 @@ void newe(char type, char *name) {
   if(name == NULL)
     name = get_config()->name;
 
-  if(get_path_by_name(name, path) != 0) {
+  if (get_path_by_name(name, path) != 0) {
     printf("Error: can't find diary %s\n", name);
     exit(1);
-  };
+   };
 
+  encdiary(0, name, get_config()->path);
   // Get current date-time
   // TODO decrypt diary
 
   // TODO path to write
 
   // TODO  mkdir dirtree
-  char mkdr[1024];
-  char tmp[1024];
   get_time(file_name, "%Y/%m/%d");
   get_path_by_name(name, tmp);
   sprintf(mkdr, "mkdir -p %s/%s", tmp, file_name);
@@ -355,6 +393,8 @@ void newe(char type, char *name) {
   system(cmd);
   printf("Written %s\n", "output");
   // encrypt diary
+
+  encdiary(1, name, get_config()->path);
   // TODO
 }
 
@@ -371,6 +411,8 @@ void list(char *name, char *filter) {
     printf("Error: can't find diary %s\n", name);
     exit(0);
   }
+
+  encdiary(0, name, get_config()->path);
 
   char tme[26];
   get_time(tme, "%Y/%m/%d");
@@ -391,12 +433,16 @@ void list(char *name, char *filter) {
   // Check if file exists
   if (!do_file_exist(path)){
     printf("Error: no entry for %s in %s\n", filter, path);
+
+    encdiary(1, name, get_config()->path);
     exit(1);
   }
 
   sprintf(cmd, c, path);
 
   system(cmd);
+
+  encdiary(1, name, get_config()->path);
 }
 
 void show(char *id, char *name) {
@@ -414,6 +460,8 @@ void show(char *id, char *name) {
     printf("Error: can't find diary %s", name);
     exit(1);
   };
+
+  encdiary(0, name, get_config()->path);
   //char time[26];
   // get_time(time, "%Y/%m/%d");
 
@@ -431,6 +479,7 @@ void show(char *id, char *name) {
   // Check if file exists
   if (!do_file_exist(path)){
     printf("Error: file not found %s\n", path);
+    encdiary(1, name, get_config()->path);
     exit(1);
   }
 
@@ -449,6 +498,7 @@ void show(char *id, char *name) {
   printf(cmd);
   // Display file
   system(cmd);
+  encdiary(1, name, get_config()->path);
 }
 
 void delete(char *id, char *name){
@@ -458,7 +508,7 @@ void delete(char *id, char *name){
   char c2[1024];
   char c3[1024];
   char c4[1024];
-
+  char ch[1024];
   if(name == NULL)
     name = get_config()->name;
 
@@ -466,11 +516,11 @@ void delete(char *id, char *name){
     printf("Error: can't find diary %s", name);
     exit(1);
   };
+  encdiary(0, name, get_config()->path);
   //char time[26];
   // get_time(time, "%Y/%m/%d");
 
   /* TODO: THIS CODE SUCKS */
-  char ch[1024];
   char *c = ch;
   strncpy(ch, id, 1024);
   while(*c++) {
@@ -483,6 +533,7 @@ void delete(char *id, char *name){
   // Check if file exists
   if (!do_file_exist(path)){
     printf("Error: file not found %s\n", path);
+    encdiary(1, name, get_config()->path);
     exit(1);
   }
 
@@ -492,8 +543,9 @@ void delete(char *id, char *name){
 
   // Display file
   system(cmd);
+  encdiary(1, name, get_config()->path);
 }
-#define usage(T) usages(argv[0], (T))
+
 
 int main(int argc, char *argv[], char *envp[]) {
   char *dname = NULL;
@@ -563,6 +615,5 @@ int main(int argc, char *argv[], char *envp[]) {
   }
   if (conf != NULL)
     free(conf);
-
   exit(0);
 }
