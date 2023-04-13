@@ -4,6 +4,8 @@ RM=rm
 RMARGS =-rf
 obj_files=main.o
 src_files=main.c
+cflgs=`pkg-config --cflags libconfig`
+libs=`pkg-config --libs libconfig`
 
 all: $(NAME)
 .PHONY: all
@@ -26,10 +28,10 @@ run: all
 	.build/$(NAME)
 
 $(NAME): main.o
-	gcc .build/obj/$< -o .build/$@
+	$(CC) $(cflgs) .build/obj/$< -o .build/$@ $(libs)
 
 %.o : %.c bdir
-	$(CC) -c $< -o .build/obj/$@
+	$(CC)  -c $< -o .build/obj/$@
 
 bdir:
 	if [ ! -d ".build" ]; then mkdir .build; fi

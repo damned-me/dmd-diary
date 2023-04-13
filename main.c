@@ -10,10 +10,10 @@
 #define usage(T) usages(argv[0], (T))
 
 typedef struct {
-  char *name;
-  char *path;
-  char *editor;
-  char *player;
+  const char *name;
+  const char *path;
+  const char *editor;
+  const char *player;
 } CONFIG;
 
 typedef enum { HELP, LIST, SHOW, NEW, INIT, DELETE } COMMAND;
@@ -75,39 +75,64 @@ void get_ref_path(char *path) {
   }
 }
 
-// TODO hardener this function
-// ref: https://stackoverflow.com/a/48414714
 CONFIG *conf = NULL;
 CONFIG *get_config() {
-  char path[1024], name[1024], value[1024];
+  /* char path[1024], name[1024], value[1024]; */
 
-  if (conf == NULL)
-    conf = malloc(sizeof(CONFIG));
+  /* if (conf == NULL) */
+  /*   conf = malloc(sizeof(CONFIG)); */
 
-  get_conf_path(path);
+  /* get_conf_path(path); */
 
-  FILE *fd = fopen(path, "r");
-  while (fscanf(fd, "%s = %[^\n]%*c", name, value) == 2) {
-    // printf("%s:%s\n", name, value);
-    size_t len = strlen(value);
-    if (strcmp(name, "default_diary") == 0) {
-      conf->name = calloc(len, sizeof(char));
-      strncpy(conf->name, value, len);
-    } else if (strcmp(name, "text_editor") == 0) {
-      conf->editor = calloc(len, sizeof(char));
-      strncpy(conf->editor, value, len);
-    } else if (strcmp(name, "video_player") == 0) {
-      conf->player = calloc(len, sizeof(char));
-      strncpy(conf->player, value, len);
-    } else if (strcmp(name, "default_dir") == 0) {
-      conf->path = calloc(len, sizeof(char));
-      strncpy(conf->path, value, len);
-    }
-  }
+  /* FILE *fd = fopen(path, "r"); */
+  /* while (fscanf(fd, "%s = %[^\n]%*c", name, value) == 2) { */
+  /*   // printf("%s:%s\n", name, value); */
+  /*   size_t len = strlen(value); */
+  /*   if (strcmp(name, "default_diary") == 0) { */
+  /*     conf->name = calloc(len, sizeof(char)); */
+  /*     strncpy(conf->name, value, len); */
+  /*   } else if (strcmp(name, "text_editor") == 0) { */
+  /*     conf->editor = calloc(len, sizeof(char)); */
+  /*     strncpy(conf->editor, value, len); */
+  /*   } else if (strcmp(name, "video_player") == 0) { */
+  /*     conf->player = calloc(len, sizeof(char)); */
+  /*     strncpy(conf->player, value, len); */
+  /*   } else if (strcmp(name, "default_dir") == 0) { */
+  /*     conf->path = calloc(len, sizeof(char)); */
+  /*     strncpy(conf->path, value, len); */
+  /*   } */
+  /* } */
   return conf;
 }
+int config() {
+  config_t cfg;
+  config_setting_t *setting;
+  const char *str;
+  conf = (CONFIG *) malloc(sizeof(CONFIG));
+  config_init(&cfg);
 
-int get_path_by_name(char *dname, char *path) {
+  char path[1024];
+  get_conf_path(path);
+
+  if(!config_read_file(&cfg, path)) {
+    fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg),
+            config_error_line(&cfg), config_error_text(&cfg));
+    config_destroy(&cfg);
+    return (EXIT_FAILURE);
+  }
+
+  if(!config_lookup_string(&cfg, "default_diary", &conf->name))
+    fprintf(stderr, "No 'default_diary' setting in configuration file.\n");
+  if (!config_lookup_string(&cfg, "text_editor", &conf->editor))
+    fprintf(stderr, "No 'text_editor' setting in configuration file.\n");
+  if(!config_lookup_string(&cfg, "video_player", &conf->player))
+    fprintf(stderr, "No 'video_player' setting in configuration file.\n");
+  if(!config_lookup_string(&cfg, "default_dir", &conf->path))
+    fprintf(stderr, "No 'default_dir' setting in configuration file.\n");
+
+  return(EXIT_SUCCESS);
+}
+int get_path_by_name(const char *dname, char *path) {
   FILE *fd;
   char rpath[1024];
   char name[512];
@@ -179,7 +204,7 @@ IDEAS
   Save reference as hash (id)
 */
 
-void encdiary(int opcl, char *name, char *path){
+void encdiary(int opcl, const char *name, const char *path){
   char *fcmd;
   char cmd[2048];
   if(name == NULL)
@@ -204,7 +229,7 @@ void encdiary(int opcl, char *name, char *path){
 }
 
 
-void init(char *name, char *dpath) {
+void init(const char *name, const char *dpath) {
   /*
     1. create dir
     2. create reference to diary
@@ -257,7 +282,7 @@ void init(char *name, char *dpath) {
   encdiary(1, name, dpath);
 }
 
-void newe(char type, char *name) {
+void newe(char type, const char *name) {
   /*
     1. find diary
     2. decrypt diary
@@ -398,7 +423,7 @@ void newe(char type, char *name) {
   // TODO
 }
 
-void list(char *name, char *filter) {
+void list(const char *name, char *filter) {
   char cmd[1024];
   char dpath[1024];
   char path[1024];
@@ -445,7 +470,7 @@ void list(char *name, char *filter) {
   encdiary(1, name, get_config()->path);
 }
 
-void show(char *id, char *name) {
+void show(char *id, const char *name) {
   char dpath[1024];
   char path[1024];
   char cmd[1024];
@@ -501,7 +526,7 @@ void show(char *id, char *name) {
   encdiary(1, name, get_config()->path);
 }
 
-void delete(char *id, char *name){
+void delete(char *id, const char *name){
   char dpath[1024];
   char path[1024];
   char cmd[1024];
@@ -546,8 +571,8 @@ void delete(char *id, char *name){
   encdiary(1, name, get_config()->path);
 }
 
-
 int main(int argc, char *argv[], char *envp[]) {
+  config();
   char *dname = NULL;
   char *filter = NULL;
   char *path = NULL;
@@ -615,5 +640,6 @@ int main(int argc, char *argv[], char *envp[]) {
   }
   if (conf != NULL)
     free(conf);
+
   exit(0);
 }
