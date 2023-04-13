@@ -282,7 +282,23 @@ void newe(char type, char *name) {
       The -vcodec defines the output video codec, since it is an mp4 file it is set to libx264 (H.264)
       Audio should default to AAC so -acodec is not needed.
     */
-    strcpy(command, "ffmpeg -threads 125 -f pulse -ac 1 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null");
+    char* ffmpeg = "ffmpeg -f v4l2 \
+    -framerate 30 \
+    -video_size 1024x768 \
+    -input_format mjpeg \
+    -i /dev/video0 \
+    -f pulse \
+    -ac 1\
+    -i default \
+    -c:a pcm_s16le \
+    -c:v mjpeg \
+    -b:v 64000k \
+    %s.mkv \
+    -map 0:v \
+    -vf \"format=yuv420p\" \
+    -f xv display";
+    strcpy(command, ffmpeg);
+    // strcpy(command, "ffmpeg -threads 125 -f pulse -ac 1 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null");
   }
   if(type == 'n') {
     strcat(file_path, ".org");
@@ -334,7 +350,6 @@ void newe(char type, char *name) {
   }
 
   sprintf(cmd, command, file_path);
-  puts(cmd);
 
   //Execute
   system(cmd);
@@ -471,7 +486,7 @@ void delete(char *id, char *name){
     exit(1);
   }
 
-  printf("Deleting %s", path);
+  printf("Deleting %s\n", path);
 
   sprintf(cmd, "rm %s", path);
 
