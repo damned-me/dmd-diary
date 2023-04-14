@@ -327,9 +327,37 @@ void newe(char type, const char *name) {
   get_time(tmp, "%Y-%m-%d");
 
   sprintf(file_path, "%s/%s/%s", path, file_name, tmp);
+
   // create file
   printf("Creating new %s\n", type == 'v' ? "video" : "note");
   if(type == 'v') {
+    sprintf(file_path, "%s/%s/%s.org", path, file_name, tmp);
+
+    // Check if file exists and add date time as header
+    if (!do_file_exist(file_path)) {
+      printf("Creating file %s\n", file_path);
+
+      fd = fopen(file_path, "w");
+
+      // Print to file
+      if (fmt == ORG) {
+	get_time(buffer, "%Y-%m-%d");
+        fprintf(fd, "* %s\n", buffer);
+      }
+      fclose(fd);
+    }
+
+    fd = fopen(file_path, "a");
+    get_time(buffer, "%H:%M:%S");
+    sprintf(file_path, "%s/%s/%s", path, file_name, tmp);
+
+    // Print to file
+    if(fmt == ORG){
+      get_time(tmp, "%Y-%m-%d_%H-%M.mkv");
+      fprintf(fd, "** %s\nfile:%s\n", buffer, tmp);
+    }
+    fclose(fd);
+
     get_time(file_name, "_%H-%M");
     strcat(file_path, file_name);
     /*
@@ -362,6 +390,7 @@ void newe(char type, const char *name) {
     -f xv display";
     strcpy(command, ffmpeg);
     // strcpy(command, "ffmpeg -threads 125 -f pulse -ac 1 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null");
+
   }
   if(type == 'n') {
     strcat(file_path, ".org");
@@ -427,6 +456,7 @@ void list(const char *name, char *filter) {
   char cmd[1024];
   char dpath[1024];
   char path[1024];
+
   char *c = "exa -hal %s";
 
   if (name == NULL)
@@ -534,6 +564,7 @@ void delete(char *id, const char *name){
   char c3[1024];
   char c4[1024];
   char ch[1024];
+
   if(name == NULL)
     name = get_config()->name;
 
@@ -572,10 +603,12 @@ void delete(char *id, const char *name){
 }
 
 int main(int argc, char *argv[], char *envp[]) {
-  config();
   char *dname = NULL;
   char *filter = NULL;
   char *path = NULL;
+
+  config();
+
   if (argc < 2)
     usage(HELP);
 
@@ -641,5 +674,5 @@ int main(int argc, char *argv[], char *envp[]) {
   if (conf != NULL)
     free(conf);
 
-  exit(0);
+  exit(EXIT_SUCCESS);
 }

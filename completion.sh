@@ -29,12 +29,12 @@ _dry()
 		    ;;
 	    esac
 	    ;;
-	3)
-	    case ${prev} in
-		note|video|yesterday|today)
-		    COMPREPLY=($(compgen -C "ls ~/.dry/storage/" -- ${cur}))
-	    esac
-	    ;;
+#   3)
+#       case ${prev} in
+#		note|video|yesterday|today)
+#		    COMPREPLY=($(compgen -C "ls ~/.dry/storage/" -- ${cur}))
+#	    esac
+#	    ;;
 	*)
 	    # All other cases: provide no completion
 	    COMPREPLY=()
