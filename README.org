@@ -1,5 +1,24 @@
-* DMD DIARY
-Diary keeping utility
+* DMD DiaRY
+Diary and Research-log keeping utility.
+
+Dry aims to make it simple to keep and annotate daily video/notes as a
+personal-diary and research log. All of the files live in an encrypted
+form. This project is work in progress and for now it only suits my
+basic needs.
+
+Some operations still needs do be done manually, but the future goal
+is the possibility to rely completely on this *tool to keep tracks of
+the complete project/research/life, based on the usecase.
+
+ * and on its emacs integration that will come after this tool reach a
+   minimal stable version
+
+** FEATURES
+- Create and delete diary entries (note and video)
+- List and show entries
+- Manage multiple diaries (project diary, daily, public)
+- Full diary encryption
+- bash autocompletion
 
 ** USAGE
 #+begin_src shell
@@ -14,27 +33,57 @@ Diary keeping utility
   dry delete id/date/span #delete entry by id
 #+end_src
 
-** TODO INSTALLATION
-To create during installation:
+** DEPENDENCIES
+- ffmpeg
+- encfs
+- less
+- exa
 
-    .dry/
-         storage/  # storage dir
-	     diaries   # ref file
-	     dry.conf  # config file
+** INSTALLATION
+To install dry just run
+#+begin_src shell
+git clone git@gitea.damned.me:damned-me/dmd-diary.git
+cd dmd-diary
+sudo make install
+#+end_src
+
+Than take a look at the config file and set your preferred values
+
+** UNINSTALL
+To remove dry got inside the ~dmd-diary~ directory than run
+
+#+begin_src shell
+sudo make uninstall
+#+end_src
 
 ** CONFIG
-Paths
+Possible config paths (can have multiple)
 - =~/.config/dry.yml=
 - =~/dry.yml=
 - =/etc/dry.yml=
 
-#+begin_src yaml
-  path:
-    editor: emacsclient
-    recorder: ffmpeg
+#+begin_src 
+default_diary = "diary";
+text_editor = "emacsclient -t";
+video_player = "mpv";
+default_dir = "/home/user/.dry/storage"; # this path needs to be absolute
 #+end_src
-** TODO DEPENDENCIES
-** FEATURES
-- [TODO] Create delete diary entry
-- [TODO] Manage more than a diary (project diary, daily, public)
-- [TODO] GPG encrypted diary
+
+** TODOS
+- feat: Open/close diary to manual modify
+- feat: add diary attachments (dry new attach path)
+- improve: new note, video/attachments reference inserted
+  into notes of day
+- feat: export diary to unencrypt
+- improve: CLI, use params to permit permutations (-m "message", -d
+  YYYY-MM-DD) (argp.h)
+- feat: filters, and more options other than `less`
+- feat: more config for user to customize
+- improve: main and parsing modularity in arguments parsing
+- refactor: general cleanup
+- feat: chiper enc/dec optimization (modular fs? exclude big files?
+  encfs support?)
+- feat: make encryption optional
+- sec: Final security code review, focalized on enc and dec of data,
+  and race condition that could let the db open
+
