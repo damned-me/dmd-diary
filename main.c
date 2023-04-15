@@ -16,7 +16,7 @@ typedef struct {
   const char *player;
 } CONFIG;
 
-typedef enum { HELP, LIST, SHOW, NEW, INIT, DELETE } COMMAND;
+typedef enum { HELP, LIST, SHOW, NEW, INIT, DELETE, EXPLORE } COMMAND;
 typedef enum { ORG, MARKDOWN, TXT } FORMAT;
 
 int do_file_exist(char *path) {
@@ -602,6 +602,38 @@ void delete(char *id, const char *name){
   encdiary(1, name, get_config()->path);
 }
 
+void explore(const char *name){
+  char path[1024];
+  char cmd[1024];
+  char c2[1024];
+  char c3[1024];
+  char c4[1024];
+  char ch[1024];
+
+  if(name == NULL)
+    name = get_config()->name;
+
+  if(get_path_by_name(name, path)) {
+    printf("Error: can't find diary %s", name);
+    exit(1);
+  };
+  encdiary(0, name, get_config()->path);
+
+
+  // Check if file exists
+  if (!do_file_exist(path)){
+    printf("Error: dir not found %s\n", path);
+    encdiary(1, name, get_config()->path);
+    exit(1);
+  }
+
+  sprintf(cmd, "ranger %s", path);
+
+  // Display files
+  system(cmd);
+  encdiary(1, name, get_config()->path);
+}
+
 int main(int argc, char *argv[], char *envp[]) {
   char *dname = NULL;
   char *filter = NULL;
@@ -670,6 +702,11 @@ int main(int argc, char *argv[], char *envp[]) {
     dname = argv[3];
 
     delete(argv[2], dname);
+  } else if (strcmp(argv[1], "explore") == 0) {
+    if (argc > 2)
+      dname = argv[2];
+
+    explore(dname);
   }
   if (conf != NULL)
     free(conf);
