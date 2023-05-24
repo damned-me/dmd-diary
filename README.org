@@ -87,3 +87,20 @@ default_dir = "/home/user/.dry/storage"; # this path needs to be absolute
 - sec: Final security code review, focalized on enc and dec of data,
   and race condition that could let the db open
 
+
+** NOTES
+#+begin_src shell
+  dry new <video|note>
+#+end_src
+
+#+begin_src shell
+  dry <list|show> <today|yesterday|yyyy-mm-dd>
+#+end_src
+
+#+begin_src shell
+  dry init <name>
+#+end_src
+
+#+begin_src shell
+  dry -d <name> delete <filename>
+#+end_src

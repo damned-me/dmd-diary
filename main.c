@@ -132,6 +132,7 @@ int config() {
 
   return(EXIT_SUCCESS);
 }
+
 int get_path_by_name(const char *dname, char *path) {
   FILE *fd;
   char rpath[1024];
@@ -151,6 +152,7 @@ int get_path_by_name(const char *dname, char *path) {
   fclose(fd);
   return 1;
 }
+
 void usages(char *name, COMMAND command) {
   switch(command) {
   case LIST:
@@ -550,7 +552,6 @@ void show(char *id, const char *name) {
   else
     sprintf(cmd, "xdg-open %s", path);
 
-  printf(cmd);
   // Display file
   system(cmd);
   encdiary(1, name, get_config()->path);
