@@ -24,14 +24,14 @@ int do_file_exist(char *path) {
   return !stat(path, &st);
 }
 
-size_t get_time(char *buffer, char *fmt) {
+size_t get_time(char *buffer, const char *fmt) {
   time_t timer;
   struct tm *tm_info;
 
   timer = time(NULL);
   tm_info = localtime(&timer);
 
-  return strftime(buffer, 26, fmt, tm_info);
+  return strftime(buffer, 1024, fmt, tm_info);
 }
 
 void get_conf_path(char *path) {
@@ -76,34 +76,8 @@ void get_ref_path(char *path) {
 }
 
 CONFIG *conf = NULL;
-CONFIG *get_config() {
-  /* char path[1024], name[1024], value[1024]; */
+CONFIG *get_config() { return conf; }
 
-  /* if (conf == NULL) */
-  /*   conf = malloc(sizeof(CONFIG)); */
-
-  /* get_conf_path(path); */
-
-  /* FILE *fd = fopen(path, "r"); */
-  /* while (fscanf(fd, "%s = %[^\n]%*c", name, value) == 2) { */
-  /*   // printf("%s:%s\n", name, value); */
-  /*   size_t len = strlen(value); */
-  /*   if (strcmp(name, "default_diary") == 0) { */
-  /*     conf->name = calloc(len, sizeof(char)); */
-  /*     strncpy(conf->name, value, len); */
-  /*   } else if (strcmp(name, "text_editor") == 0) { */
-  /*     conf->editor = calloc(len, sizeof(char)); */
-  /*     strncpy(conf->editor, value, len); */
-  /*   } else if (strcmp(name, "video_player") == 0) { */
-  /*     conf->player = calloc(len, sizeof(char)); */
-  /*     strncpy(conf->player, value, len); */
-  /*   } else if (strcmp(name, "default_dir") == 0) { */
-  /*     conf->path = calloc(len, sizeof(char)); */
-  /*     strncpy(conf->path, value, len); */
-  /*   } */
-  /* } */
-  return conf;
-}
 int config() {
   config_t cfg;
   config_setting_t *setting;
@@ -207,7 +181,6 @@ IDEAS
 */
 
 void encdiary(int opcl, const char *name, const char *path){
-  char *fcmd;
   char cmd[2048];
   if(name == NULL)
     name = get_config()->name;
@@ -216,17 +189,12 @@ void encdiary(int opcl, const char *name, const char *path){
     path = get_config()->path;
 
   if (!opcl) {
-    char password[1024];
-    fcmd =
-        "encfs %s/.%s %s/%s";
-    sprintf(cmd, fcmd, path, name, path, name);
+    sprintf(cmd, "encfs %s/.%s %s/%s", path, name, path, name);
   }
   else {
-    fcmd =
-        "fusermount -u %s/%s";
-    sprintf(cmd, fcmd, path, name);
-    /* puts(cmd); */
+    sprintf(cmd, "fusermount -u %s/%s", path, name);
   }
+  /* puts(cmd); */
   system(cmd);
 }
 
@@ -284,85 +252,124 @@ void init(const char *name, const char *dpath) {
   encdiary(1, name, dpath);
 }
 
-void newe(char type, const char *name) {
-  /*
-    1. find diary
-    2. decrypt diary
-    3. create file
-    4. encrypt diary
-  */
-  // filename format: YYYY-MM-DD.ext
-  char buffer[26];
-  char file_path[1024];
-  char file_name[26];
-  char cmd[1024];
-  char command[1024];
-  char path[1024];
-  char mkdr[1024];
+int get_text_path_by_name(const char *name, char *path) {
+  char fmt[1024];
   char tmp[1024];
-
-  FILE *fd;
-  FORMAT fmt = ORG; // TODO: possibile formats: markdown, org
-
-  // Find diary or default if null
-  // set default diary name
-  if(name == NULL)
-    name = get_config()->name;
-
-  if (get_path_by_name(name, path) != 0) {
-    printf("Error: can't find diary %s\n", name);
-    exit(1);
-   };
-
-  encdiary(0, name, get_config()->path);
-  // Get current date-time
-  // TODO decrypt diary
-
-  // TODO path to write
-
-  // TODO  mkdir dirtree
-  get_time(file_name, "%Y/%m/%d");
+  char *ext = ".org";
   get_path_by_name(name, tmp);
-  sprintf(mkdr, "mkdir -p %s/%s", tmp, file_name);
-  system(mkdr);
 
-  get_time(tmp, "%Y-%m-%d");
+  get_time(fmt, "%%s/%Y/%m/%d/%Y-%m-%d");
 
-  sprintf(file_path, "%s/%s/%s", path, file_name, tmp);
+  sprintf(path, fmt, tmp);
+  strcat(path, ext); // add file extension (.ext)
 
-  // create file
-  printf("Creating new %s\n", type == 'v' ? "video" : "note");
-  if(type == 'v') {
-    sprintf(file_path, "%s/%s/%s.org", path, file_name, tmp);
+  return 0;
+}
 
-    // Check if file exists and add date time as header
-    if (!do_file_exist(file_path)) {
-      printf("Creating file %s\n", file_path);
+int get_video_path_by_name(const char *name, char *path) {
+  char tmp[1024];
+  char fmt[1024];
+  char *ext = ".mkv";
+  get_path_by_name(name, tmp);
 
-      fd = fopen(file_path, "w");
+  get_time(fmt, "%%s/%Y/%m/%d/%Y-%m-%d_%H-%M");
 
-      // Print to file
-      if (fmt == ORG) {
-	get_time(buffer, "%Y-%m-%d");
-        fprintf(fd, "* %s\n", buffer);
-      }
-      fclose(fd);
-    }
+  sprintf(path, fmt, tmp);
+  strcat(path, ext);
 
-    fd = fopen(file_path, "a");
-    get_time(buffer, "%H:%M:%S");
-    sprintf(file_path, "%s/%s/%s", path, file_name, tmp);
+  return 0;
+}
 
-    // Print to file
-    if(fmt == ORG){
-      get_time(tmp, "%Y-%m-%d_%H-%M.mkv");
-      fprintf(fd, "** %s\nfile:%s\n", buffer, tmp);
-    }
+int make_directory_tree(const char *name) {
+  /*
+    USES CURRENT DATE TO CREATE A DIRECTORY PATH OF TYPE
+
+		/path/to/diary/yyyy/mm/dd/
+   */
+
+  char mkdr[1024];
+  char subdir[1024];
+  char path[1024];
+
+  get_path_by_name(name, path);
+  get_time(subdir, "%Y/%m/%d");
+  sprintf(mkdr, "mkdir -p %s/%s", path, subdir);
+  return system(mkdr);
+}
+
+char *l1_header_fmt(FORMAT fmt, char *fstring)
+{
+  char *header;
+  switch (fmt) {
+  case ORG:
+    header = "* %Y-%m-%d\n";
+    break;
+  case MARKDOWN:
+    header = "# %Y-%m-%d\n";
+    break;
+  case TXT:
+  default:
+    header = "%Y-%m-%d\n";
+    break;
+  }
+  return strcpy(fstring, header);
+}
+
+char *l2_header_fmt(FORMAT fmt, char *fstring) {
+  char *header;
+  switch (fmt) {
+  case ORG:
+    header = "** %H:%M:%S\n";
+    break;
+  case MARKDOWN:
+    header = "## %H:%M:%S\n";
+  case TXT:
+  default:
+    header = "\t%H:%M:%S\n";
+  }
+  return strcpy(fstring, header);
+}
+
+void set_text_file_header(const char *name, FORMAT fmt) {
+  FILE *fd;
+  char path[1024];
+  char buffer[1024];
+  char fstring[1024];
+
+  get_text_path_by_name(name, path);
+
+  // if file not exists add level 1 headers
+  if (!do_file_exist(path)) {
+    printf("Creating file %s\n", path);
+
+    // get date header
+    l1_header_fmt(fmt, fstring);
+    get_time(buffer, fstring);
+
+    // create file and write header
+    fd = fopen(path, "w");
+    fprintf(fd, "%s", buffer);
     fclose(fd);
+  }
 
-    get_time(file_name, "_%H-%M");
-    strcat(file_path, file_name);
-    /*
+  // get time header
+  l2_header_fmt(fmt, fstring);
+  get_time(buffer, fstring);
+
+  fd = fopen(path, "a");
+  fprintf(fd, "%s", buffer);
+  fclose(fd);
+}
+
+int get_text_command(const char *name, char *cmd) {
+  char path[1024];
+  get_text_path_by_name(name, path);
+  return sprintf(cmd, "%s %s", get_config()->editor, path);
+}
+
+int get_video_command(const char *name, char *cmd) {
+  char path[1024];
+  /*
       Webcam recordings (ffmpeg)
       https://askubuntu.com/questions/1445157/how-to-record-webcam-with-audio-on-ubuntu-22-04-from-cli
       https://ffmpeg.org/
@@ -374,84 +381,74 @@ void newe(char type, const char *name) {
       The -t defines the duration of the recording, in this case 20 seconds.
       The -vcodec defines the output video codec, since it is an mp4 file it is set to libx264 (H.264)
       Audio should default to AAC so -acodec is not needed.
-    */
-    char* ffmpeg = "ffmpeg -f v4l2 \
-    -framerate 30 \
-    -video_size 1024x768 \
-    -input_format mjpeg \
-    -i /dev/video0 \
-    -f pulse \
-    -ac 1\
-    -i default \
-    -c:a pcm_s16le \
-    -c:v mjpeg \
-    -b:v 64000k \
-    %s.mkv \
-    -map 0:v \
-    -vf \"format=yuv420p\" \
-    -f xv display";
-    strcpy(command, ffmpeg);
-    // strcpy(command, "ffmpeg -threads 125 -f pulse -ac 1 -i default -thread_queue_size 32 -input_format mjpeg -i /dev/video0 -f mjpeg - %s.mkv 2>/dev/null | ffplay - 2>/dev/null");
+  */
+  char *ffmpeg = "ffmpeg -f v4l2 \
+-framerate 30 \
+-video_size 1024x768 \
+-input_format mjpeg \
+-i /dev/video0 \
+-f pulse \
+-ac 1 \
+-i default \
+-c:a pcm_s16le \
+-c:v mjpeg \
+-b:v 64000k \
+%s \
+-map 0:v \
+-vf \"format=yuv420p\" \
+-f xv display";
 
-  }
-  if(type == 'n') {
-    strcat(file_path, ".org");
+  get_video_path_by_name(name,  path);
 
-    // Check if file exists and add date time as header
-    if (!do_file_exist(file_path)) {
-      get_time(buffer, "%Y-%m-%d");
-      printf("Creating file %s\n", file_path);
+  sprintf(cmd, ffmpeg, path);
 
-      fd = fopen(file_path, "w");
+  return 0;
+}
 
-      // Print to file
-      switch (fmt) {
-      case ORG:
-        fprintf(fd, "* %s\n", buffer);
-        break;
-      case MARKDOWN:
-        fprintf(fd, "# %s\n", buffer);
-        break;
-      case TXT:
-      default:
-        fprintf(fd, "%s\n", buffer);
-        break;
-      }
+void newe(char type, const char *name) {
+  FORMAT fmt = ORG;
+  char cmd[1024];
+  char path[1024];
 
-      fclose(fd);
-    }
+  if(name == NULL)
+    name = get_config()->name;
 
-    fd = fopen(file_path, "a");
-    get_time(buffer, "%H:%M:%S");
+  // check if diary exists
+  if (get_path_by_name(name, path) != 0) {
+    printf("Error: can't find diary %s\n", name);
+    exit(1);
+   };
 
-    // Print to file
-    switch (fmt) {
-    case ORG:
-      fprintf(fd, "** %s\n", buffer);
-      break;
-    case MARKDOWN:
-      fprintf(fd, "## %s\n", buffer);
-      break;
-    case TXT:
-    default:
-      fprintf(fd, "\t%s\n", buffer);
-      break;
-    }
+  // decrypt diary
+  encdiary(0, name, get_config()->path);
+
+  // create directory tree
+  make_directory_tree(name);
+
+  // create entry
+  printf("Creating new %s\n", type == 'v' ? "video" : "note");
+
+  set_text_file_header(name, fmt);
+
+  if(type == 'v') {
+    get_text_path_by_name(name, path);
+
+    FILE *fd = fopen(path, "a");
+    fprintf(fd, "file:%s\n", path);
     fclose(fd);
 
-    /* call file and editor */
-    sprintf(command, "%s %%s", get_config()->editor);
+    get_video_command(name, cmd);
   }
-
-  sprintf(cmd, command, file_path);
+  else if(type == 'n') {
+    get_text_command(name, cmd);
+  }
 
   //Execute
   system(cmd);
   printf("Written %s\n", "output");
-  // encrypt diary
 
+  // encrypt diary
   encdiary(1, name, get_config()->path);
-  // TODO
 }
 
 void list(const char *name, char *filter) {
@@ -502,6 +499,48 @@ void list(const char *name, char *filter) {
   encdiary(1, name, get_config()->path);
 }
 
+typedef enum { TEXT, MEDIA, OTHER } FILE_TYPE;
+
+FILE_TYPE get_file_type(char *path) {
+  FILE_TYPE type;
+  char c2[1024];
+  char c3[1024];
+  char c4[1024];
+
+
+  // Check file type
+  sprintf(c2, "file %s | grep ASCII > /dev/null", path);
+  sprintf(c4, "file %s | grep Unicode > /dev/null", path);
+  sprintf(c3, "file %s | grep Matroska > /dev/null", path);
+
+  if (system(c2) == 0 || system(c4) == 0)
+    type = TEXT;
+  else if (system(c3) == 0)
+    type = MEDIA;
+  else
+    type = OTHER;
+
+  return type;
+}
+
+int open_file_command(char *path, char *cmd) {
+  FILE_TYPE type = get_file_type(path);
+  if (cmd != NULL) {
+    switch (type) {
+    case TEXT:
+      sprintf(cmd, "less %s", path);
+      break;
+    case MEDIA:
+      sprintf(cmd, "%s %s", get_config()->player, path);
+      break;
+    case OTHER:
+      sprintf(cmd, "xdg-open %s", path);
+      break;
+    }
+  }
+  return type;
+}
+
 void show(char *id, const char *name) {
   char dpath[1024];
   char path[1024];
@@ -533,7 +572,8 @@ void show(char *id, const char *name) {
   /* ----- */
 
   sprintf(path, "%s/%s/%s", dpath, ch, id);
-  // Check if file exists
+
+ // Check if file exists
   if (!do_file_exist(path)){
     printf("Error: file not found %s\n", path);
     encdiary(1, name, get_config()->path);
@@ -541,6 +581,7 @@ void show(char *id, const char *name) {
   }
 
   // Check file type
+  /*
   sprintf(c2, "file %s | grep ASCII > /dev/null", path);
   sprintf(c4, "file %s | grep Unicode > /dev/null", path);
   sprintf(c3, "file %s | grep Matroska > /dev/null", path);
@@ -551,6 +592,9 @@ void show(char *id, const char *name) {
     sprintf(cmd, "%s %s", get_config()->player, path);
   else
     sprintf(cmd, "xdg-open %s", path);
+  */
+
+  open_file_command(path, cmd);
 
   // Display file
   system(cmd);
@@ -561,9 +605,6 @@ void delete(char *id, const char *name){
   char dpath[1024];
   char path[1024];
   char cmd[1024];
-  char c2[1024];
-  char c3[1024];
-  char c4[1024];
   char ch[1024];
 
   if(name == NULL)
@@ -606,10 +647,6 @@ void delete(char *id, const char *name){
 void explore(const char *name){
   char path[1024];
   char cmd[1024];
-  char c2[1024];
-  char c3[1024];
-  char c4[1024];
-  char ch[1024];
 
   if(name == NULL)
     name = get_config()->name;
