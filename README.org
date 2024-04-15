@@ -1,10 +1,7 @@
 * DMD DiaRY
-Diary and Research-log keeping utility.
+DiaRY and Research-log keeping utility.
 
-Dry aims to make it simple to keep and annotate daily video/notes as a
-personal-diary and research log. All of the files live in an encrypted
-form. This project is work in progress and for now it only suits my
-basic needs.
+DRY aims to make it simple to keep and annotate daily video/notes as a personal-diary and research log. All of the files lives in an encrypted directory. This is a WIP project and for now it only suits my basic needs.
 
 Some operations still needs do be done manually, but the future goal
 is the possibility to rely completely on this *tool to keep tracks of
@@ -18,7 +15,7 @@ the complete project/research/life, based on the usecase.
 - List and show entries
 - Manage multiple diaries (project diary, daily, public)
 - Full diary encryption
-- bash autocompletion
+- WIP bash autocompletion
 
 ** USAGE
 #+begin_src shell
@@ -40,9 +37,9 @@ the complete project/research/life, based on the usecase.
 - exa
 
 ** INSTALLATION
-To install dry just run
+To install dry clone the repo and run the following inside the repo's root
+
 #+begin_src shell
-git clone git@gitea.damned.me:damned-me/dmd-diary.git
 cd dmd-diary
 sudo make install
 #+end_src
@@ -57,7 +54,7 @@ sudo make uninstall
 #+end_src
 
 ** CONFIG
-Possible config paths (can have multiple)
+Possible config paths (can have multiple configs)
 - =~/.config/dry.yml=
 - =~/dry.yml=
 - =/etc/dry.yml=
@@ -69,38 +66,66 @@ video_player = "mpv";
 default_dir = "/home/user/.dry/storage"; # this path needs to be absolute
 #+end_src
 
+** INTERNALS
+Dry is a pretty simple wrapper for a series of CLI operations, thus it could be written in something simple
+
 ** TODOS
+- fix: write reference after successfully having saved the video
+- fix: exit if encfs fails to open properly
+- fix: ffmpeg not properly initialize webcam
+- refactor: general cleanup
 - feat: Open/close diary to manual modify
 - feat: add diary attachments (dry new attach path)
-- improve: new note, video/attachments reference inserted
-  into notes of day
-- feat: export diary to unencrypt
-- improve: CLI, use params to permit permutations (-m "message", -d
-  YYYY-MM-DD) (argp.h)
-- feat: filters, and more options other than `less`
+- feat: export diary to unencrypt form
+- improve: CLI, use params to permit permutations (-m "message", -d YYYY-MM-DD) (argp.h)
 - feat: more config for user to customize
 - improve: main and parsing modularity in arguments parsing
-- refactor: general cleanup
-- feat: chiper enc/dec optimization (modular fs? exclude big files?
-  encfs support?)
+- feat: chiper enc/dec optimization (modular fs? exclude big files?  encfs support?)
 - feat: make encryption optional
-- sec: Final security code review, focalized on enc and dec of data,
-  and race condition that could let the db open
+- fix: fix bash completion
+
+Next steps:
+- feat: configure markdown (and others) as a possible choice for markup langs
+- feat: filters
+- improve: new note, video/attachments reference inserted into notes of day
+- feat: mobile application integration
+- feat: permits to embed screencast and screenshots, as well as other formats, to the video entry
+- feat: permits to customize an overlay for the video entry in config file
+- sec: security code review, focalized on enc and dec of data, as race condition that could let the db open
+- feat: add colors
+
+Add configurations:
+- video
+  - size
+  - format
+  - webcam
+  - microphone
+- markdown formats (see =configure markdown=)
+- display note command (=cat=, =less=, etc...)
 
 
 ** NOTES
+
+For initilizing a new diary ~init~ is used
+#+begin_src shell
+  dry init <diary_name>
+#+end_src
+
+To create new content issue the ~add~ command, bot will create a reference in the current daily entry, that is created if not exists, marking hour of the day.
+- video -  records a video, uses webcam and mic connected to the PC, also add a reference to the video to the daily entry
+- note - add text to the entry
 #+begin_src shell
   dry new <video|note>
 #+end_src
 
+To explore captured content just use ~list~ or ~show~
+- ~list~ - will list the content relative to the entries specified by the query
+- ~show~ - will print out a daily entry or reproduce the attachment
 #+begin_src shell
   dry <list|show> <today|yesterday|yyyy-mm-dd>
 #+end_src
 
+Deleting a diary entity is done trought the usage of ~delete~
 #+begin_src shell
-  dry init <name>
-#+end_src
-
-#+begin_src shell
-  dry -d <name> delete <filename>
+  dry delete <id> <diary_name>
 #+end_src
