@@ -90,7 +90,7 @@ int config() {
 
   if(!config_read_file(&cfg, path)) {
     fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg),
-            config_error_line(&cfg), config_error_text(&cfg));
+	    config_error_line(&cfg), config_error_text(&cfg));
     config_destroy(&cfg);
     return (EXIT_FAILURE);
   }
@@ -161,26 +161,27 @@ void usages(char *name, COMMAND command) {
   }
   exit(1);
 }
-/*
-Encryption (encfs)
-https://www.baeldung.com/linux/encrypting-decrypting-directory
-https://linux.die.net/man/1/encfs
 
-Create                      mode                        /encr            /decr
-$ echo "password" | encfs --paranoia --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
-
-Open
-$ echo "password" | encfs --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
-
-Close
-$ fusermount -u ~/.dry/storage/%s
-
-IDEAS
-- Build a buckets hash list using directory of encfs
-  Save reference as hash (id)
-*/
 
 void encdiary(int opcl, const char *name, const char *path){
+  /*
+    Encryption (encfs)
+    https://www.baeldung.com/linux/encrypting-decrypting-directory
+    https://linux.die.net/man/1/encfs
+
+    Create                      mode                        /encr            /decr
+    $ echo "password" | encfs --paranoia --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
+
+    Open
+    $ echo "password" | encfs --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
+
+    Close
+    $ fusermount -u ~/.dry/storage/%s
+
+    IDEAS
+    - Build a buckets hash list using directory of encfs
+    Save reference as hash (id)
+  */
   char cmd[2048];
   if(name == NULL)
     name = get_config()->name;
@@ -189,13 +190,37 @@ void encdiary(int opcl, const char *name, const char *path){
     path = get_config()->path;
 
   if (!opcl) {
+    /* creating working directory */
+    sprintf(cmd, "%s/%s", path, name);
+    /* printf("mkdir %s 0700", cmd); */
+    mkdir(cmd, 0700);
     sprintf(cmd, "encfs %s/.%s %s/%s", path, name, path, name);
+
+    /* puts(cmd); */
+
+    /*
+     * if user insert wrong password exit with errorcode
+     * handling errors for fusermount requires handling directories too
+     * note:
+     *       encfs exits with 0 SUCCESS, 130 ERROR
+     */
+    if(system(cmd)) {
+      /* remove working directory */
+      sprintf(cmd, "%s/%s", path, name);
+      /* printf("Remove %s", cmd); */
+      remove(cmd);
+      /* exit */
+      exit(EXIT_FAILURE);
+    }
   }
   else {
     sprintf(cmd, "fusermount -u %s/%s", path, name);
+    system(cmd);
+    /* remove working directory */
+    sprintf(cmd, "%s/%s", path, name);
+    /* printf("Remove %s", cmd); */
+    remove(cmd);
   }
-  /* puts(cmd); */
-  system(cmd);
 }
 
 
@@ -227,20 +252,9 @@ void init(const char *name, const char *dpath) {
   sprintf(path, "%s/%s", dpath, name);
 
   /* create enc fs if not exist */
-  /* if (!do_file_exist(path)){ */
-    //mkdir(path, 0700);
   sprintf(cmd, "encfs --paranoia %s/.%s %s/%s", dpath, name, dpath, name);
   system(cmd);
-  /* } */
-  /* else { */
-  /*   char c; */
-  /*   printf("Directory already exist at %s and it may not be empty\n" */
-  /*          "Would you like to add a reference to it? [y/N]\n", */
-  /*          path); */
-  /*   scanf("%c", &c); */
-  /*   if (c != 'y' && c != 'Y') */
-  /*     exit(1); */
-  /* } */
+
 
   /* add reference to diary to ref file */
   get_ref_path(fref);
@@ -431,13 +445,13 @@ void newe(char type, const char *name) {
   set_text_file_header(name, fmt);
 
   if(type == 'v') {
+    get_video_command(name, cmd);
+
     get_text_path_by_name(name, path);
 
     FILE *fd = fopen(path, "a");
     fprintf(fd, "file:%s\n", path);
     fclose(fd);
-
-    get_video_command(name, cmd);
   }
   else if(type == 'n') {
     get_text_command(name, cmd);

@@ -70,8 +70,9 @@ default_dir = "/home/user/.dry/storage"; # this path needs to be absolute
 Dry is a pretty simple wrapper for a series of CLI operations, thus it could be written in something simple
 
 ** TODOS
-- fix: write reference after successfully having saved the video
-- fix: exit if encfs fails to open properly
+- [X] fix: write reference after successfully having saved the video
+- [X] fix: exit if encfs fails to open properly
+- [X] fix: folder managing
 - fix: ffmpeg not properly initialize webcam
 - refactor: general cleanup
 - feat: Open/close diary to manual modify
@@ -85,6 +86,7 @@ Dry is a pretty simple wrapper for a series of CLI operations, thus it could be 
 - fix: fix bash completion
 
 Next steps:
+- feat: add code logging feature
 - feat: configure markdown (and others) as a possible choice for markup langs
 - feat: filters
 - improve: new note, video/attachments reference inserted into notes of day
