@@ -298,8 +298,8 @@ int make_directory_tree(const char *name) {
   /*
     USES CURRENT DATE TO CREATE A DIRECTORY PATH OF TYPE
 
-		/path/to/diary/yyyy/mm/dd/
-   */
+    /path/to/diary/yyyy/mm/dd/
+  */
 
   char mkdr[1024];
   char subdir[1024];
@@ -384,26 +384,27 @@ int get_text_command(const char *name, char *cmd) {
 int get_video_command(const char *name, char *cmd) {
   char path[1024];
   /*
-      Webcam recordings (ffmpeg)
-      https://askubuntu.com/questions/1445157/how-to-record-webcam-with-audio-on-ubuntu-22-04-from-cli
-      https://ffmpeg.org/
+    Webcam recordings (ffmpeg)
+    https://askubuntu.com/questions/1445157/how-to-record-webcam-with-audio-on-ubuntu-22-04-from-cli
+    https://ffmpeg.org/
 
-      ffmpeg -f pulse -ac 2 -i default -f v4l2 -i /dev/video0 -t 00:00:20 -vcodec libx264 record.mp4
-      The -f defines the format, pulse for audio and v4l2(Video 4 Linux 2).
-      The -ac defines the audio channels, in this case 2.
-      The -i defines the input, default for audio and the webcam for video.
-      The -t defines the duration of the recording, in this case 20 seconds.
-      The -vcodec defines the output video codec, since it is an mp4 file it is set to libx264 (H.264)
-      Audio should default to AAC so -acodec is not needed.
+    ffmpeg -f pulse -ac 2 -i default -f v4l2 -i /dev/video0 -t 00:00:20 -vcodec libx264 record.mp4
+    The -f defines the format, pulse for audio and v4l2(Video 4 Linux 2).
+    The -ac defines the audio channels, in this case 2.
+    The -i defines the input, default for audio and the webcam for video.
+    The -t defines the duration of the recording, in this case 20 seconds.
+    The -vcodec defines the output video codec, since it is an mp4 file it is set to libx264 (H.264)
+    Audio should default to AAC so -acodec is not needed.
   */
-  char *ffmpeg = "ffmpeg -f v4l2 \
+  char *ffmpeg = "ffmpeg \
+-f v4l2 \
 -framerate 30 \
 -video_size 1024x768 \
 -input_format mjpeg \
 -i /dev/video0 \
 -f pulse \
--ac 1 \
 -i default \
+-ac 1 \
 -c:a pcm_s16le \
 -c:v mjpeg \
 -b:v 64000k \
