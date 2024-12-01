@@ -35,6 +35,7 @@ the complete project/research/life, based on the usecase.
 - encfs
 - less
 - exa
+- ranger
 
 ** INSTALLATION
 To install dry clone the repo and run the following inside the repo's root
@@ -75,7 +76,7 @@ Dry is a pretty simple wrapper for a series of CLI operations, thus it could be 
 - [X] fix: folder managing
 - [X] fix: ffmpeg not properly initialize webcam
 - refactor: general cleanup
-- feat: Open/close diary to manual modify
+- [X] feat: Open/close diary to manual modify
 - feat: add diary attachments (dry new attach path)
 - feat: export diary to unencrypt form
 - improve: CLI, use params to permit permutations (-m "message", -d YYYY-MM-DD) (argp.h)
