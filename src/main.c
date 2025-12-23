@@ -269,9 +269,6 @@ int main(int argc, char *argv[], char *envp[]) {
     diary_delete(argv[0], dname);
   } else if (strcmp(subcmd, "explore") == 0) {
     diary_explore(dname);
-  } else if (strcmp(subcmd, "help") == 0) {
-    print_help("dry");
-    exit(EXIT_SUCCESS);
   } else {
     fprintf(stderr, "Error: unknown command '%s'\n", subcmd);
     print_help("dry");

@@ -1,0 +1,181 @@
+# Completion for dry diary utility
+# Works with both bash and zsh - just source this file
+
+_dry_get_diaries() {
+    local ref_file="${HOME}/.dry/diaries.ref"
+    if [[ -f "$ref_file" ]]; then
+        awk -F' : ' '{print $1}' "$ref_file" 2>/dev/null
+    fi
+}
+
+_dry_get_entry_ids() {
+    local diary_name="$1"
+    local ref_file="${HOME}/.dry/diaries.ref"
+    local diary_path=""
+    
+    if [[ -f "$ref_file" ]]; then
+        diary_path=$(awk -F' : ' -v name="$diary_name" '$1 == name {print $2}' "$ref_file" 2>/dev/null)
+        diary_path="${diary_path/#\~/$HOME}"
+    fi
+    
+    # Only complete if mounted (non-empty directory)
+    if [[ -d "$diary_path" ]] && [[ -n "$(ls -A "$diary_path" 2>/dev/null)" ]]; then
+        local today=$(date '+%Y/%m/%d')
+        local yesterday=$(date -d 'yesterday' '+%Y/%m/%d' 2>/dev/null || date -v -1d '+%Y/%m/%d' 2>/dev/null)
+        
+        for date_path in "$today" "$yesterday"; do
+            local full_path="$diary_path/$date_path"
+            if [[ -d "$full_path" ]]; then
+                ls "$full_path" 2>/dev/null
+            fi
+        done
+    fi
+}
+
+# Detect shell and set up appropriate completion
+if [[ -n "$ZSH_VERSION" ]]; then
+    # ===================== ZSH COMPLETION =====================
+    _dry() {
+        local curcontext="$curcontext" state line
+        typeset -A opt_args
+
+        local -a global_opts
+        global_opts=(
+            '(-d --diary)'{-d,--diary}'[Specify diary to use]:diary name:->diaries'
+            '(-h --help)'{-h,--help}'[Show help message]'
+            '(-v --version)'{-v,--version}'[Show version information]'
+        )
+
+        local -a commands
+        commands=(
+            'init:Initialize a new diary'
+            'new:Add a new entry (note or video)'
+            'list:List diary entries'
+            'show:Show an entry by ID'
+            'delete:Delete an entry'
+            'explore:Open diary in file manager'
+        )
+
+        _arguments -C \
+            $global_opts \
+            '1: :->command' \
+            '*:: :->args' && return 0
+
+        case "$state" in
+            diaries)
+                local -a diary_list
+                diary_list=(${(f)"$(_dry_get_diaries)"})
+                _describe -t diaries 'diary' diary_list
+                ;;
+            command)
+                _describe -t commands 'dry command' commands
+                ;;
+            args)
+                local cmd="${line[1]}"
+                local diary_name="${opt_args[-d]:-${opt_args[--diary]:-}}"
+                
+                case "$cmd" in
+                    init)
+                        _arguments \
+                            '1:diary name:' \
+                            '2:path:_files -/'
+                        ;;
+                    new)
+                        _arguments \
+                            $global_opts \
+                            '1:type:(note video)'
+                        ;;
+                    list)
+                        _arguments \
+                            $global_opts \
+                            '1:filter:(today yesterday tomorrow)'
+                        ;;
+                    show|delete)
+                        local -a entries
+                        entries=(${(f)"$(_dry_get_entry_ids "$diary_name")"})
+                        _arguments \
+                            $global_opts \
+                            '1:entry id:'"($entries)"
+                        ;;
+                    explore)
+                        _arguments $global_opts
+                        ;;
+                esac
+                ;;
+        esac
+    }
+    
+    compdef _dry dry
+
+elif [[ -n "$BASH_VERSION" ]]; then
+    # ===================== BASH COMPLETION =====================
+    _dry() {
+        local cur prev
+        COMPREPLY=()
+        cur="${COMP_WORDS[COMP_CWORD]}"
+        prev="${COMP_WORDS[COMP_CWORD-1]}"
+        
+        # Extract diary name from -d option
+        local diary_name=""
+        local i
+        for ((i=1; i < COMP_CWORD; i++)); do
+            if [[ "${COMP_WORDS[i]}" == "-d" || "${COMP_WORDS[i]}" == "--diary" ]]; then
+                diary_name="${COMP_WORDS[i+1]}"
+                break
+            elif [[ "${COMP_WORDS[i]}" == -d* ]]; then
+                diary_name="${COMP_WORDS[i]#-d}"
+                break
+            elif [[ "${COMP_WORDS[i]}" == --diary=* ]]; then
+                diary_name="${COMP_WORDS[i]#--diary=}"
+                break
+            fi
+        done
+
+        # Handle option completions
+        case "${prev}" in
+            -d|--diary)
+                COMPREPLY=($(compgen -W "$(_dry_get_diaries)" -- "${cur}"))
+                return
+                ;;
+        esac
+
+        # Handle current word starting with -
+        if [[ "${cur}" == -* ]]; then
+            COMPREPLY=($(compgen -W "-d --diary -h --help -v --version" -- "${cur}"))
+            return
+        fi
+
+        # Find subcommand
+        local subcmd=""
+        for ((i=1; i < COMP_CWORD; i++)); do
+            local word="${COMP_WORDS[i]}"
+            if [[ "${word}" == -* ]]; then
+                [[ "${word}" == "-d" || "${word}" == "--diary" ]] && ((i++))
+                continue
+            fi
+            subcmd="${word}"
+            break
+        done
+
+        # Complete subcommands or arguments
+        if [[ -z "${subcmd}" ]]; then
+            COMPREPLY=($(compgen -W "init new list show delete explore" -- "${cur}"))
+            return
+        fi
+
+        case "${subcmd}" in
+            new)
+                COMPREPLY=($(compgen -W "note video" -- "${cur}"))
+                ;;
+            list)
+                COMPREPLY=($(compgen -W "today yesterday tomorrow" -- "${cur}"))
+                ;;
+            show|delete)
+                local entries=$(_dry_get_entry_ids "${diary_name}")
+                [[ -n "${entries}" ]] && COMPREPLY=($(compgen -W "${entries}" -- "${cur}"))
+                ;;
+        esac
+    }
+    
+    complete -F _dry -o default dry
+fi

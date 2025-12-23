@@ -5,12 +5,16 @@
 #include "config.h"
 #include "utils.h"
 
-void encdiary(int opcl, const char *name, const char *path) {
+void encdiary(int opcl, const char *name, const char *base_path) {
   /*
    * Encryption (encfs)
    * 
    * Open:  encfs <encrypted_dir> <mount_point>
    * Close: fusermount -u <mount_point>
+   * 
+   * The encrypted directory is stored as .<name> in the parent of mount_point
+   * e.g., mount_point = /path/to/storage/diary
+   *       enc_path    = /path/to/storage/.diary
    */
   char cmd[2048];
   char enc_path[1024];
@@ -19,11 +23,12 @@ void encdiary(int opcl, const char *name, const char *path) {
   if (name == NULL)
     name = get_config()->name;
 
-  if (path == NULL)
-    path = get_config()->path;
+  if (base_path == NULL)
+    base_path = get_config()->path;
 
-  sprintf(enc_path, "%s/.%s", path, name);
-  sprintf(mount_point, "%s/%s", path, name);
+  /* Construct mount_point and enc_path */
+  sprintf(mount_point, "%s/%s", base_path, name);
+  sprintf(enc_path, "%s/.%s", base_path, name);
 
   if (!opcl) {
     /* OPEN: decrypt and mount */
