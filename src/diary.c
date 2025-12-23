@@ -141,27 +141,47 @@ void diary_list(const char *name, char *filter) {
   encdiary(0, name, get_config()->path);
 
   char tme[26];
-  get_time(tme, "%Y/%m/%d");
+  int use_filter_path = 1;
 
-  if (filter != NULL && strcmp(filter, "yesterday") == 0) {
-    time_t now;
-    struct tm *ts;
-
-    now = time(NULL);
-    ts = localtime(&now);
+  if (filter == NULL) {
+    /* No filter: list entire diary */
+    use_filter_path = 0;
+  } else if (strcmp(filter, "today") == 0) {
+    get_time(tme, "%Y/%m/%d");
+  } else if (strcmp(filter, "yesterday") == 0) {
+    time_t now = time(NULL);
+    struct tm *ts = localtime(&now);
     ts->tm_mday--;
-    mktime(ts); /* Normalise ts */
+    mktime(ts);
     strftime(tme, sizeof(tme), "%Y/%m/%d", ts);
+  } else if (strcmp(filter, "tomorrow") == 0) {
+    time_t now = time(NULL);
+    struct tm *ts = localtime(&now);
+    ts->tm_mday++;
+    mktime(ts);
+    strftime(tme, sizeof(tme), "%Y/%m/%d", ts);
+  } else {
+    /* Assume filter is a date in YYYY/MM/DD or YYYY-MM-DD format */
+    strncpy(tme, filter, sizeof(tme) - 1);
+    tme[sizeof(tme) - 1] = '\0';
+    /* Convert dashes to slashes if present */
+    for (char *p = tme; *p; p++) {
+      if (*p == '-') *p = '/';
+    }
   }
 
-  sprintf(path, "%s/%s", dpath, tme);
+  if (use_filter_path) {
+    sprintf(path, "%s/%s", dpath, tme);
 
-  /* Check if file exists */
-  if (!do_file_exist(path)) {
-    printf("Error: no entry for %s in %s\n", filter, path);
-
-    encdiary(1, name, get_config()->path);
-    exit(EXIT_FAILURE);
+    /* Check if path exists */
+    if (!do_file_exist(path)) {
+      printf("Error: no entries for '%s' in %s\n", filter, name);
+      encdiary(1, name, get_config()->path);
+      exit(EXIT_FAILURE);
+    }
+  } else {
+    /* List entire diary */
+    strcpy(path, dpath);
   }
 
   sprintf(cmd, c, path);

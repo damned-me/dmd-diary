@@ -86,7 +86,7 @@ DRY is a simple wrapper around a series of CLI operations, written in C because 
 - [x] fix: installation (config are exported wrong, diary init fails)
 - [x] fix: help is not shown when --help or -h
 - [x]improve: CLI, use params to permit permutations (-m "message", -d YYYY-MM-DD) (argp.h)
-- fix: list operations (today tomorrow etc)
+- [x] fix: list operations (today tomorrow etc)
 - fix: fix bash completion
 - feat: implement play
 - fix: change defaults for better portability (eg. exa -> ls), also add options to configure it from the configs
