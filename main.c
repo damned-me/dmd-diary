@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <pwd.h>
+#include <errno.h>
 #include <libconfig.h>
 
 #define usage(T) usages(argv[0], (T))
@@ -18,6 +19,16 @@ typedef struct {
 
 typedef enum { HELP, LIST, SHOW, NEW, INIT, DELETE, EXPLORE } COMMAND;
 typedef enum { ORG, MARKDOWN, TXT } FORMAT;
+
+void expand_tilde(const char *input, char *output) {
+  if (input[0] == '~' && (input[1] == '/' || input[1] == '\0')) {
+    struct passwd *pw = getpwuid(getuid());
+    const char *homedir = pw->pw_dir;
+    sprintf(output, "%s%s", homedir, input + 1);
+  } else {
+    strcpy(output, input);
+  }
+}
 
 int do_file_exist(char *path) {
   struct stat st = {0};
@@ -45,13 +56,13 @@ void get_conf_path(char *path) {
     sprintf(path, "%s/.dry/dry.conf", homedir);
     // ~/.dry/dry.conf
     if (!do_file_exist(path)) {
-      sprintf(path, "/etc/%s", "dry.conf");
+      sprintf(path, "/etc/dry/%s", "dry.conf");
       // /etc/dry.conf
       if (!do_file_exist(path)) {
-        fprintf(stderr, "Error: can't find config file");
+        fprintf(stderr, "Error: can't find config file\n");
         fprintf(stderr,
-                "Create config file in\n~/.dry/dry.conf\n/etc/dry.conf");
-        exit(1);
+                "Create config file in\n.dry/dry.conf\n~/.dry/dry.conf\n/etc/dry/dry.conf");
+        exit(EXIT_FAILURE);
       }
     }
   }
@@ -62,15 +73,32 @@ void get_ref_path(char *path) {
   struct passwd *pw = getpwuid(getuid());
   const char *homedir = pw->pw_dir;
 
-  // .dry/dry.conf
+  // Check .dry/diaries.ref (current directory)
   sprintf(path, ".dry/diaries.ref");
   if (!do_file_exist(path)) {
+    // Check ~/.dry/diaries.ref (home directory)
     sprintf(path, "%s/.dry/diaries.ref", homedir);
-    // ~/.dry/dry.conf
     if (!do_file_exist(path)) {
-      fprintf(stderr, "Error: can't find config file");
-      fprintf(stderr, "Create config file in\n~/.dry/.conf\n/etc/dry.conf");
-      exit(1);
+      // Create empty reference file (~/.dry/diaries.ref)
+      char dir_path[1024];
+      sprintf(dir_path, "%s/.dry", homedir);
+      
+      struct stat st = {0};
+      if (stat(dir_path, &st) == -1) {
+        if (mkdir(dir_path, 0700) != 0) {
+          fprintf(stderr, "Error: failed to create directory %s\n", dir_path);
+          exit(EXIT_FAILURE);
+        }
+      }
+      
+      FILE *fd = fopen(path, "w");
+      if (fd == NULL) {
+        fprintf(stderr, "Error: failed to create reference file %s\n", path);
+        exit(EXIT_FAILURE);
+      }
+      fclose(fd);
+      
+      fprintf(stderr, "Created reference file at %s\n", path);
     }
   }
 }
@@ -82,7 +110,8 @@ int config() {
   config_t cfg;
   config_setting_t *setting;
   const char *str;
-  conf = (CONFIG *) malloc(sizeof(CONFIG));
+  conf = (CONFIG *) calloc(1, sizeof(CONFIG));
+
   config_init(&cfg);
 
   char path[1024];
@@ -101,8 +130,16 @@ int config() {
     fprintf(stderr, "No 'text_editor' setting in configuration file.\n");
   if(!config_lookup_string(&cfg, "video_player", &conf->player))
     fprintf(stderr, "No 'video_player' setting in configuration file.\n");
-  if(!config_lookup_string(&cfg, "default_dir", &conf->path))
+  
+  const char *config_path;
+  if(!config_lookup_string(&cfg, "default_dir", &config_path)) {
     fprintf(stderr, "No 'default_dir' setting in configuration file.\n");
+  } else {
+    /* Expand tilde in path and store it */
+    char *expanded_path = (char *)malloc(1024);
+    expand_tilde(config_path, expanded_path);
+    conf->path = expanded_path;
+  }
 
   return(EXIT_SUCCESS);
 }
@@ -118,7 +155,7 @@ int get_path_by_name(const char *dname, char *path) {
   fd = fopen(rpath, "r");
   while (fscanf(fd, "%s : %s", name, value) > 0) {
     if (strcmp(name, dname) == 0) {
-      strcpy(path, value);
+      expand_tilde(value, path);
       fclose(fd);
       return 0;
     }
@@ -159,110 +196,151 @@ void usages(char *name, COMMAND command) {
     printf("\tdelete <id> <name>\tDelete specified entry\n");
     break;
   }
-  exit(1);
+  exit(EXIT_FAILURE);
 }
-
 
 void encdiary(int opcl, const char *name, const char *path){
   /*
     Encryption (encfs)
-    https://www.baeldung.com/linux/encrypting-decrypting-directory
-    https://linux.die.net/man/1/encfs
-
-    Create                      mode                        /encr            /decr
-    $ echo "password" | encfs --paranoia --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
-
-    Open
-    $ echo "password" | encfs --stdinpass ~/.dry/storage/%s ~/.dry/storage/.%s
-
-    Close
-    $ fusermount -u ~/.dry/storage/%s
-
-    IDEAS
-    - Build a buckets hash list using directory of encfs
-    Save reference as hash (id)
+    
+    Open:  encfs <encrypted_dir> <mount_point>
+    Close: fusermount -u <mount_point>
   */
   char cmd[2048];
+  char enc_path[1024];
+  char mount_point[1024];
+  
   if(name == NULL)
     name = get_config()->name;
 
   if(path == NULL)
     path = get_config()->path;
 
+  sprintf(enc_path, "%s/.%s", path, name);
+  sprintf(mount_point, "%s/%s", path, name);
+
   if (!opcl) {
-    /* creating working directory */
-    sprintf(cmd, "%s/%s", path, name);
-    /* printf("mkdir %s 0700", cmd); */
-    mkdir(cmd, 0700);
-    sprintf(cmd, "encfs %s/.%s %s/%s", path, name, path, name);
-
-    /* puts(cmd); */
-
-    /*
-     * if user insert wrong password exit with errorcode
-     * handling errors for fusermount requires handling directories too
-     * note:
-     *       encfs exits with 0 SUCCESS, 130 ERROR
-     */
-    if(system(cmd)) {
-      /* remove working directory */
-      sprintf(cmd, "%s/%s", path, name);
-      /* printf("Remove %s", cmd); */
-      remove(cmd);
-      /* exit */
+    /* OPEN: decrypt and mount */
+    
+    /* check if encrypted source exists */
+    if (!do_file_exist(enc_path)) {
+      fprintf(stderr, "Error: encrypted directory %s does not exist\n", enc_path);
+      fprintf(stderr, "Please initialize the diary first with: dry init %s\n", name);
+      exit(EXIT_FAILURE);
+    }
+    
+    /* check if already mounted */
+    sprintf(cmd, "mountpoint -q %s 2>/dev/null", mount_point);
+    if (system(cmd) == 0) {
+      /* already mounted, nothing to do */
+      return;
+    }
+    
+    /* prepare clean mount point */
+    rmdir(mount_point);  /* remove if empty */
+    if (mkdir(mount_point, 0700) != 0 && errno != EEXIST) {
+      fprintf(stderr, "Error: failed to create mount point %s: %s\n", mount_point, strerror(errno));
+      exit(EXIT_FAILURE);
+    }
+    
+    /* mount encrypted filesystem */
+    sprintf(cmd, "encfs %s %s", enc_path, mount_point);
+    if (system(cmd) != 0) {
+      fprintf(stderr, "Error: failed to mount encrypted filesystem\n");
+      rmdir(mount_point);
       exit(EXIT_FAILURE);
     }
   }
   else {
-    sprintf(cmd, "fusermount -u %s/%s", path, name);
-    system(cmd);
-    /* remove working directory */
-    sprintf(cmd, "%s/%s", path, name);
-    /* printf("Remove %s", cmd); */
-    remove(cmd);
+    /* CLOSE: unmount and cleanup */
+    
+    /* check if mounted */
+    sprintf(cmd, "mountpoint -q %s 2>/dev/null", mount_point);
+    if (system(cmd) != 0) {
+      /* not mounted, just cleanup */
+      rmdir(mount_point);
+      return;
+    }
+    
+    /* unmount */
+    sprintf(cmd, "fusermount -u %s", mount_point);
+    if (system(cmd) != 0) {
+      fprintf(stderr, "Warning: failed to unmount %s\n", mount_point);
+    }
+    
+    /* remove mount point directory */
+    rmdir(mount_point);
   }
 }
 
 
 void init(const char *name, const char *dpath) {
   /*
-    1. create dir
-    2. create reference to diary
-    3. create dirtree
-    4. create encrypted fs
-
-    .dry/
-    storage/      # storage dir
-    diaries.ref   # ref file
-    dry.conf      # config file
+    Initialize a new encrypted diary:
+    1. Create encrypted source directory
+    2. Create mount point
+    3. Initialize encfs
+    4. Add reference to diaries.ref
   */
   char fref[1024];
   char path[1024];
+  char enc_path[1024];
   char cmd[1024];
-
+  
   if(dpath == NULL)
     dpath = get_config()->path;
 
   /* check if already exist */
   if (!get_path_by_name(name, path)) {
-    printf("Diary already exist at %s\n", path);
-    exit(1);
+    printf("Diary already exists at %s\n", path);
+    exit(EXIT_FAILURE);
   }
 
   sprintf(path, "%s/%s", dpath, name);
+  sprintf(enc_path, "%s/.%s", dpath, name);
+  
+  /* create parent storage directory if needed */
+  sprintf(cmd, "mkdir -p -m 0700 %s", dpath);
+  if (system(cmd) != 0) {
+    fprintf(stderr, "Error: failed to create storage directory %s\n", dpath);
+    exit(EXIT_FAILURE);
+  }
+  
+  /* create encrypted source directory */
+  if (mkdir(enc_path, 0700) != 0 && errno != EEXIST) {
+    fprintf(stderr, "Error: failed to create directory %s: %s\n", enc_path, strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+  
+  /* create mount point */
+  if (mkdir(path, 0700) != 0 && errno != EEXIST) {
+    fprintf(stderr, "Error: failed to create directory %s: %s\n", path, strerror(errno));
+    exit(EXIT_FAILURE);
+  }
 
-  /* create enc fs if not exist */
-  sprintf(cmd, "encfs --paranoia %s/.%s %s/%s", dpath, name, dpath, name);
-  system(cmd);
-
+  /* create encrypted filesystem */
+  sprintf(cmd, "encfs --paranoia %s %s", enc_path, path);
+  if (system(cmd) != 0) {
+    fprintf(stderr, "Error: failed to create encrypted filesystem\n");
+    /* cleanup on failure */
+    rmdir(path);
+    rmdir(enc_path);
+    exit(EXIT_FAILURE);
+  }
 
   /* add reference to diary to ref file */
   get_ref_path(fref);
   FILE *fd = fopen(fref, "a");
+  if (fd == NULL) {
+    fprintf(stderr, "Error: failed to open reference file %s\n", fref);
+    exit(EXIT_FAILURE);
+  }
   fprintf(fd, "%s : %s\n", name, path);
+  fclose(fd);
 
   printf("Created new diary %s at %s\n", name, path);
 
+  /* unmount after initialization */
   encdiary(1, name, dpath);
 }
 
@@ -308,7 +386,12 @@ int make_directory_tree(const char *name) {
   get_path_by_name(name, path);
   get_time(subdir, "%Y/%m/%d");
   sprintf(mkdr, "mkdir -p %s/%s", path, subdir);
-  return system(mkdr);
+  
+  int result = system(mkdr);
+  if (result != 0) {
+    fprintf(stderr, "Error: failed to create directory tree %s/%s\n", path, subdir);
+  }
+  return result;
 }
 
 char *l1_header_fmt(FORMAT fmt, char *fstring)
@@ -362,6 +445,11 @@ void set_text_file_header(const char *name, FORMAT fmt) {
 
     // create file and write header
     fd = fopen(path, "w");
+    if (fd == NULL) {
+      fprintf(stderr, "Error: failed to create file %s\n", path);
+      perror("fopen");
+      exit(EXIT_FAILURE);
+    }
     fprintf(fd, "%s", buffer);
     fclose(fd);
   }
@@ -371,18 +459,37 @@ void set_text_file_header(const char *name, FORMAT fmt) {
   get_time(buffer, fstring);
 
   fd = fopen(path, "a");
+  if (fd == NULL) {
+    fprintf(stderr, "Error: failed to open file %s\n", path);
+    perror("fopen");
+    exit(EXIT_FAILURE);
+  }
   fprintf(fd, "%s", buffer);
   fclose(fd);
 }
 
 int get_text_command(const char *name, char *cmd) {
   char path[1024];
+  
+  if (get_config()->editor == NULL) {
+    fprintf(stderr, "Error: text_editor not configured\n");
+    fprintf(stderr, "Please set 'text_editor' in your config file\n");
+    exit(EXIT_FAILURE);
+  }
+  
   get_text_path_by_name(name, path);
   return sprintf(cmd, "%s %s", get_config()->editor, path);
 }
 
 int get_video_command(const char *name, char *cmd) {
   char path[1024];
+  
+  if (get_config()->player == NULL) {
+    fprintf(stderr, "Error: video_player not configured\n");
+    fprintf(stderr, "Please set 'video_player' in your config file\n");
+    exit(EXIT_FAILURE);
+  }
+  
   /*
     Webcam recordings (ffmpeg)
     https://askubuntu.com/questions/1445157/how-to-record-webcam-with-audio-on-ubuntu-22-04-from-cli
@@ -431,7 +538,7 @@ void newe(char type, const char *name) {
   // check if diary exists
   if (get_path_by_name(name, path) != 0) {
     printf("Error: can't find diary %s\n", name);
-    exit(1);
+    exit(EXIT_FAILURE);
    };
 
   // decrypt diary
@@ -478,7 +585,7 @@ void list(const char *name, char *filter) {
 
   if (get_path_by_name(name, dpath)) {
     printf("Error: can't find diary %s\n", name);
-    exit(0);
+    exit(EXIT_SUCCESS);
   }
 
   encdiary(0, name, get_config()->path);
@@ -504,7 +611,7 @@ void list(const char *name, char *filter) {
     printf("Error: no entry for %s in %s\n", filter, path);
 
     encdiary(1, name, get_config()->path);
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   sprintf(cmd, c, path);
@@ -569,7 +676,7 @@ void show(char *id, const char *name) {
 
   if(get_path_by_name(name, dpath)) {
     printf("Error: can't find diary %s", name);
-    exit(1);
+    exit(EXIT_FAILURE);
   };
 
   encdiary(0, name, get_config()->path);
@@ -588,11 +695,11 @@ void show(char *id, const char *name) {
 
   sprintf(path, "%s/%s/%s", dpath, ch, id);
 
- // Check if file exists
+  // Check if file exists
   if (!do_file_exist(path)){
     printf("Error: file not found %s\n", path);
     encdiary(1, name, get_config()->path);
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   // Check file type
@@ -627,7 +734,7 @@ void delete(char *id, const char *name){
 
   if(get_path_by_name(name, dpath)) {
     printf("Error: can't find diary %s", name);
-    exit(1);
+    exit(EXIT_FAILURE);
   };
   encdiary(0, name, get_config()->path);
   //char time[26];
@@ -647,7 +754,7 @@ void delete(char *id, const char *name){
   if (!do_file_exist(path)){
     printf("Error: file not found %s\n", path);
     encdiary(1, name, get_config()->path);
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   printf("Deleting %s\n", path);
@@ -668,7 +775,7 @@ void explore(const char *name){
 
   if(get_path_by_name(name, path)) {
     printf("Error: can't find diary %s", name);
-    exit(1);
+    exit(EXIT_FAILURE);
   };
   encdiary(0, name, get_config()->path);
 
@@ -677,7 +784,7 @@ void explore(const char *name){
   if (!do_file_exist(path)){
     printf("Error: dir not found %s\n", path);
     encdiary(1, name, get_config()->path);
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   sprintf(cmd, "ranger %s", path);

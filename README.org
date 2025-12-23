@@ -27,6 +27,7 @@ Some operations may still need to be done manually, but the future goal is to re
 #+end_src
 
 ** DEPENDENCIES
+- libconfig
 - ffmpeg
 - encfs
 - less
@@ -85,6 +86,9 @@ DRY is a simple wrapper around a series of CLI operations, written in C because 
 - improve: chiper enc/dec optimization (modular fs? exclude big files? encfs support?)
 - feat: make encryption optional
 - fix: fix bash completion
+- improve: remove libconfig
+- fix: installation (config are exported wrong, diary init fails)
+- feat: add a "use" command so temporary select a diary for that terminal session (maybe an env var?)
 
 Next steps:
 - feat: add code logging feature

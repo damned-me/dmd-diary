@@ -11,10 +11,8 @@ all: $(NAME)
 .PHONY: all
 
 install: all
-	echo "default_diary = diary\ntext_editor = emacsclient -t\nvideo_player = mpv\ndefault_dir = ~/.dry/storage	" > /etc/dry.conf
-	mkdir ~/.dry/storage -p
-	touch ~/.dry/dry.conf
-	touch ~/.dry/diaries.ref
+	mkdir -p /etc/dry
+	cp dry.conf /etc/dry/dry.conf
 	cp ./completion.sh /etc/bash_completion.d/dry
 	cp .build/$(NAME) /bin/$(NAME)
 	chmod +x /bin/$(NAME)
