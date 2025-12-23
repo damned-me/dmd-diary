@@ -549,3 +549,110 @@ void diary_explore(const char *name) {
   system(cmd);
   encdiary(1, name, get_config()->path);
 }
+
+int diary_is_unlocked(const char *name) {
+  char mount_point[2048];
+  char cmd[4096];
+  
+  if (name == NULL)
+    name = get_config()->name;
+  
+  snprintf(mount_point, sizeof(mount_point), "%s/%s", get_config()->path, name);
+  snprintf(cmd, sizeof(cmd), "mountpoint -q %s 2>/dev/null", mount_point);
+  
+  return (system(cmd) == 0);
+}
+
+void diary_unlock(const char *name) {
+  char path[2048];
+  
+  if (name == NULL)
+    name = get_config()->name;
+
+  if (get_path_by_name(name, path)) {
+    printf("Error: can't find diary %s\n", name);
+    exit(EXIT_FAILURE);
+  }
+
+  if (diary_is_unlocked(name)) {
+    printf("Diary '%s' is already unlocked\n", name);
+    printf("  Path: %s\n", path);
+    return;
+  }
+
+  /* Mount and keep open (don't unmount) */
+  encdiary(0, name, get_config()->path);
+  
+  printf("Diary '%s' unlocked\n", name);
+  printf("  Path: %s\n", path);
+  printf("\nRemember to lock when done: dry lock");
+  if (strcmp(name, get_config()->name) != 0) {
+    printf(" -d %s", name);
+  }
+  printf("\n");
+}
+
+void diary_lock(const char *name) {
+  char path[2048];
+  
+  if (name == NULL)
+    name = get_config()->name;
+
+  if (get_path_by_name(name, path)) {
+    printf("Error: can't find diary %s\n", name);
+    exit(EXIT_FAILURE);
+  }
+
+  if (!diary_is_unlocked(name)) {
+    printf("Diary '%s' is not unlocked\n", name);
+    return;
+  }
+
+  /* Force unmount */
+  encdiary(1, name, get_config()->path);
+  
+  printf("Diary '%s' locked\n", name);
+}
+
+void diary_status(void) {
+  /*
+   * Print status of unlocked diaries for shell prompt integration.
+   * Output format: "diary:name" if unlocked, nothing if all locked.
+   * 
+   * Usage in shell prompt (bash/zsh):
+   *   PS1='$(dry status)> '
+   *   or in zsh RPROMPT, bash PS1, etc.
+   */
+  char ref_path[2048];
+  char line[4096];
+  
+  snprintf(ref_path, sizeof(ref_path), "%s/.dry/diaries.ref", getenv("HOME"));
+  
+  FILE *f = fopen(ref_path, "r");
+  if (!f) return;
+  
+  int found = 0;
+  while (fgets(line, sizeof(line), f)) {
+    /* Parse "name : path" format */
+    char *sep = strstr(line, " : ");
+    if (!sep) continue;
+    
+    *sep = '\0';
+    char *name = line;
+    
+    /* Trim whitespace */
+    while (*name == ' ') name++;
+    char *end = name + strlen(name) - 1;
+    while (end > name && (*end == ' ' || *end == '\n')) *end-- = '\0';
+    
+    if (diary_is_unlocked(name)) {
+      if (found) printf(",");
+      printf("%s", name);
+      found++;
+    }
+  }
+  
+  fclose(f);
+  
+  if (found) printf("\n");
+}

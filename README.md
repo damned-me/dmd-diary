@@ -81,6 +81,23 @@ file_manager = "xdg-open"
 pager = "less"
 ```
 
+DRY will search for config files in the order shown above, and will merge them, with the latter having precedence over the former.
+
+DRY has a terminal bash completion script located in the `completion` file. To enable it, source it in your `.bashrc` or equivalent shell configuration file:
+
+```shell
+source /path/to/dmd-diary/completion
+```
+
+A simple terminal integration can be configured by adding the following line to your shell configuration file:
+
+```shell
+# Add to ~/.bashrc or ~/.zshrc
+PS1='$(dry status)$ '
+# or for zsh right prompt
+RPROMPT='$(dry status)'
+```
+
 ## INTERNALS
 
 DRY is a simple wrapper around a series of CLI operations, written in C because it's lighweight and I love it.
@@ -103,14 +120,16 @@ DRY is a simple wrapper around a series of CLI operations, written in C because 
 - [x] improve:  ensure all commands supports the same interface (command subcommand `[diary]` `[args]`). Looks like list work only with the default diary
 - [x] feat: add tests
 - [x] feat: implement play command (`dry play <id>|today|yesterday`). Play video entries. If the user passes today/yesterday it plays all videos recorded that day, in order of recording, otherwise it plays the video with the specified id.
-- feat: unlock command to open the diary for manual modification (`dry unlock [-d diary]`), which will decrypt the diary,and a lock command to close it again (`dry lock [-d diary]`).
-- feat: add a "use" command to temporary change the default diary for that terminal session (maybe an env var?)
-- feat: add diary attachments (dry new attach path)
-- feat: make encryption optional (configurable per diary?)
-- feat: make command to export diary to unencrypted form, the command supports exporting the whole diary or a time span (dry export [--from YYYY-MM-DD] [--to YYYY-MM-DD] [-d diary])
-- feat: import command to import unencrypted diaries into encrypted form (dry import path [-d diary])
-- feat: more config for user to customize
-- improve: chiper enc/dec optimization (modular fs? exclude big files? encfs support?)
+- [ ] feat: unlock command to open the diary for manual modification (`dry unlock [-d diary]`), which will decrypt the diary,and a lock command to close it again (`dry lock [-d diary]`).
+- [ ] fix: delete command
+- [ ] feat: implement a command to delete the whole diary (`dry delete -d diary_name --all`), with confirmation prompt
+- [ ] feat: add a "use" command to temporary change the default diary for that terminal session (maybe an env var?)
+- [ ] feat: add diary attachments (dry new attach path)
+- [ ] feat: make encryption optional (configurable per diary?)
+- [ ] feat: make command to export diary to unencrypted form, the command supports exporting the whole diary or a time span (dry export [--from YYYY-MM-DD] [--to YYYY-MM-DD] [-d diary])
+- [ ] feat: import command to import unencrypted diaries into encrypted form (dry import path [-d diary])
+- [ ] feat: more config for user to customize
+- [ ] improve: chiper enc/dec optimization (modular fs? exclude big files? encfs support?)
 
 Next steps:
 - feat: add code logging feature

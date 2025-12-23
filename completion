@@ -54,6 +54,9 @@ if [[ -n "$ZSH_VERSION" ]]; then
             'show:Show an entry by ID'
             'delete:Delete an entry'
             'explore:Open diary in file manager'
+            'unlock:Unlock diary for manual editing'
+            'lock:Lock diary after manual editing'
+            'status:Show unlocked diaries'
         )
 
         _arguments -C \
@@ -114,6 +117,15 @@ if [[ -n "$ZSH_VERSION" ]]; then
                         ;;
                     explore)
                         _arguments $global_opts
+                        ;;
+                    unlock)
+                        _arguments $global_opts
+                        ;;
+                    lock)
+                        _arguments $global_opts
+                        ;;
+                    status)
+                        # No arguments needed
                         ;;
                 esac
                 ;;
@@ -184,7 +196,7 @@ elif [[ -n "$BASH_VERSION" ]]; then
 
         # Complete subcommands or arguments
         if [[ -z "${subcmd}" ]]; then
-            COMPREPLY=($(compgen -W "init new list show delete explore" -- "${cur}"))
+            COMPREPLY=($(compgen -W "init new list show delete explore unlock lock status" -- "${cur}"))
             return
         fi
 

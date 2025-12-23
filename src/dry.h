@@ -32,7 +32,10 @@ typedef enum {
   NEW, 
   INIT, 
   DELETE, 
-  EXPLORE 
+  EXPLORE,
+  UNLOCK,
+  LOCK,
+  STATUS
 } COMMAND;
 
 /* Entry format types */

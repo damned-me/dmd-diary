@@ -31,4 +31,16 @@ void diary_delete(char *id, const char *name);
 /* Explore diary with file manager */
 void diary_explore(const char *name);
 
+/* Unlock diary (mount and keep open) */
+void diary_unlock(const char *name);
+
+/* Lock diary (unmount) */
+void diary_lock(const char *name);
+
+/* Print status of unlocked diaries (for shell prompt integration) */
+void diary_status(void);
+
+/* Check if a specific diary is unlocked */
+int diary_is_unlocked(const char *name);
+
 #endif /* DIARY_H */

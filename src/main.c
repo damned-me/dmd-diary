@@ -30,6 +30,9 @@ static void print_help(char *name) {
   printf("  list [<filter>]       List entries (today, yesterday, date)\n");
   printf("  delete <id>           Delete an entry\n");
   printf("  explore               Open diary in file manager\n");
+  printf("  unlock                Unlock diary for manual editing\n");
+  printf("  lock                  Lock diary after manual editing\n");
+  printf("  status                Show unlocked diaries (for shell prompt)\n");
 }
 
 static void print_subcommand_help(COMMAND command) {
@@ -89,6 +92,32 @@ static void print_subcommand_help(COMMAND command) {
     printf("Usage: %s [-d <diary>] explore\n\n", prog_name);
     printf("Options:\n");
     printf("  -d, --diary <name>  Diary to use (default from config)\n");
+    break;
+  case UNLOCK:
+    printf("Unlock diary for manual editing\n\n");
+    printf("Usage: %s [-d <diary>] unlock\n\n", prog_name);
+    printf("Decrypts and mounts the diary, leaving it accessible for manual\n");
+    printf("file operations. Remember to lock when done.\n\n");
+    printf("Options:\n");
+    printf("  -d, --diary <name>  Diary to use (default from config)\n");
+    break;
+  case LOCK:
+    printf("Lock diary after manual editing\n\n");
+    printf("Usage: %s [-d <diary>] lock\n\n", prog_name);
+    printf("Unmounts and re-encrypts the diary.\n\n");
+    printf("Options:\n");
+    printf("  -d, --diary <name>  Diary to use (default from config)\n");
+    break;
+  case STATUS:
+    printf("Show unlocked diaries (for shell prompt integration)\n\n");
+    printf("Usage: %s status\n\n", prog_name);
+    printf("Prints names of currently unlocked diaries, comma-separated.\n");
+    printf("Outputs nothing if all diaries are locked.\n\n");
+    printf("Shell prompt integration example:\n");
+    printf("  # bash\n");
+    printf("  PS1='\\$(dry status && echo \" \")\\$ '\n\n");
+    printf("  # zsh\n");
+    printf("  RPROMPT='\\$(dry status)'\n");
     break;
   case HELP:
   default:
@@ -227,6 +256,9 @@ int main(int argc, char *argv[], char *envp[]) {
     else if (strncmp(subcmd, "show", 5) == 0) print_subcommand_help(SHOW);
     else if (strncmp(subcmd, "delete", 7) == 0) print_subcommand_help(DELETE);
     else if (strncmp(subcmd, "explore", 8) == 0) print_subcommand_help(EXPLORE);
+    else if (strncmp(subcmd, "unlock", 7) == 0) print_subcommand_help(UNLOCK);
+    else if (strncmp(subcmd, "lock", 5) == 0) print_subcommand_help(LOCK);
+    else if (strncmp(subcmd, "status", 7) == 0) print_subcommand_help(STATUS);
     else print_help("dry");
     exit(EXIT_SUCCESS);
   }
@@ -282,6 +314,12 @@ int main(int argc, char *argv[], char *envp[]) {
     diary_delete(argv[0], dname);
   } else if (strncmp(subcmd, "explore", 8) == 0) {
     diary_explore(dname);
+  } else if (strncmp(subcmd, "unlock", 7) == 0) {
+    diary_unlock(dname);
+  } else if (strncmp(subcmd, "lock", 5) == 0) {
+    diary_lock(dname);
+  } else if (strncmp(subcmd, "status", 7) == 0) {
+    diary_status();
   } else {
     fprintf(stderr, "Error: unknown command '%s'\n", subcmd);
     print_help("dry");
