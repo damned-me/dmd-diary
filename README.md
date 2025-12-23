@@ -100,15 +100,16 @@ DRY is a simple wrapper around a series of CLI operations, written in C because 
 - [x] fix: list operations (today tomorrow etc)
 - [x] fix: fix bash completion
 - [x] fix: change defaults for better portability (eg. exa -> ls), also add options to configure it from the configs
-- improve: main function and argment parsing modularity
-- improve: chiper enc/dec optimization (modular fs? exclude big files? encfs support?)
+- [x] improve: main function and argment parsing modularity
 - feat: implement play
 - feat: add diary attachments (dry new attach path)
 - feat: export diary to unencrypted form
 - feat: make encryption optional
 - feat: more config for user to customize
 - feat: add a "use" command to temporary select a diary for that terminal session (maybe an env var?)
-- improve:  ensure all commands supports the same interface (command subcommand `[diary]` `[args]`). Looks like list work only with the default diary
+- [x] improve:  ensure all commands supports the same interface (command subcommand `[diary]` `[args]`). Looks like list work only with the default diary
+- [x] feat: add tests
+- improve: chiper enc/dec optimization (modular fs? exclude big files? encfs support?)
 
 Next steps:
 - feat: add code logging feature

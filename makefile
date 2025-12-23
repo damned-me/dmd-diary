@@ -46,3 +46,13 @@ bdir:
 .PHONY: clean
 clean:
 	$(RM) $(RMARGS) .build
+
+.PHONY: test
+test: all
+	@chmod +x tests/*.sh
+	@./tests/run_all.sh
+
+.PHONY: test-quick
+test-quick: all
+	@chmod +x tests/*.sh
+	@./tests/run_all.sh quick

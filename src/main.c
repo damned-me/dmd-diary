@@ -7,7 +7,10 @@
 #include <getopt.h>
 
 #define VERSION "0.1.0"
-#define usage(T) usages(argv[0], (T))
+
+static char *prog_name = "dry";  /* Set from argv[0] in main() */
+
+#define usage(T) usages(prog_name, (T))
 
 static void print_version(void) {
   printf("dry version %s\n", VERSION);
@@ -33,14 +36,14 @@ static void print_subcommand_help(COMMAND command) {
   switch (command) {
   case INIT:
     printf("Initialize a new diary\n\n");
-    printf("Usage: dry init <name> [<path>]\n\n");
+    printf("Usage: %s init <name> [<path>]\n\n", prog_name);
     printf("Arguments:\n");
     printf("  <name>    Name of the diary to create\n");
     printf("  <path>    Optional path where to create the diary\n");
     break;
   case NEW:
     printf("Add a new entry to the diary\n\n");
-    printf("Usage: dry [-d <diary>] new <video|note>\n\n");
+    printf("Usage: %s [-d <diary>] new <video|note>\n\n", prog_name);
     printf("Arguments:\n");
     printf("  <type>    Entry type: 'video' or 'note'\n\n");
     printf("Options:\n");
@@ -48,7 +51,7 @@ static void print_subcommand_help(COMMAND command) {
     break;
   case SHOW:
     printf("Show an entry by its ID\n\n");
-    printf("Usage: dry [-d <diary>] show <id>\n\n");
+    printf("Usage: %s [-d <diary>] show <id>\n\n", prog_name);
     printf("Arguments:\n");
     printf("  <id>      Entry ID to show\n\n");
     printf("Options:\n");
@@ -56,7 +59,7 @@ static void print_subcommand_help(COMMAND command) {
     break;
   case LIST:
     printf("List diary entries\n\n");
-    printf("Usage: dry [-d <diary>] list [<filter>]\n\n");
+    printf("Usage: %s [-d <diary>] list [<filter>]\n\n", prog_name);
     printf("Arguments:\n");
     printf("  <filter>  Optional filter: 'today', 'yesterday', 'tomorrow', or a date\n\n");
     printf("Options:\n");
@@ -64,7 +67,7 @@ static void print_subcommand_help(COMMAND command) {
     break;
   case DELETE:
     printf("Delete an entry from the diary\n\n");
-    printf("Usage: dry -d <diary> delete <id>\n\n");
+    printf("Usage: %s -d <diary> delete <id>\n\n", prog_name);
     printf("Arguments:\n");
     printf("  <id>      Entry ID to delete\n\n");
     printf("Options:\n");
@@ -72,13 +75,13 @@ static void print_subcommand_help(COMMAND command) {
     break;
   case EXPLORE:
     printf("Open the diary in the file manager\n\n");
-    printf("Usage: dry [-d <diary>] explore\n\n");
+    printf("Usage: %s [-d <diary>] explore\n\n", prog_name);
     printf("Options:\n");
     printf("  -d, --diary <name>  Diary to use (default from config)\n");
     break;
   case HELP:
   default:
-    print_help("dry");
+    print_help(prog_name);
     break;
   }
 }
@@ -113,54 +116,15 @@ static void usages(char *name, COMMAND command) {
   exit(command == HELP ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-/* Check if any argument is --help or -h */
-static int has_help_flag(int argc, char *argv[]) {
-  for (int i = 0; i < argc; i++) {
-    if (strncmp(argv[i], "--help", 7) == 0 || strncmp(argv[i], "-h", 3) == 0)
-      return 1;
-  }
-  return 0;
-}
-
-/* Extract -d/--diary option from argv, return diary name and remove from args */
-static char *extract_diary_option(int *argc, char *argv[]) {
-  char *diary = NULL;
-  int i = 0;
-  
-  while (i < *argc) {
-    if ((strncmp(argv[i], "-d", 3) == 0 || strncmp(argv[i], "--diary", 8) == 0) && i + 1 < *argc) {
-      diary = argv[i + 1];
-      /* Remove -d and its argument from argv */
-      for (int j = i; j < *argc - 2; j++) {
-        argv[j] = argv[j + 2];
-      }
-      *argc -= 2;
-    } else if (strncmp(argv[i], "-d", 2) == 0 && strlen(argv[i]) > 2) {
-      /* Handle -dDIARY format */
-      diary = argv[i] + 2;
-      for (int j = i; j < *argc - 1; j++) {
-        argv[j] = argv[j + 1];
-      }
-      *argc -= 1;
-    } else if (strncmp(argv[i], "--diary=", 8) == 0) {
-      /* Handle --diary=DIARY format */
-      diary = argv[i] + 8;
-      for (int j = i; j < *argc - 1; j++) {
-        argv[j] = argv[j + 1];
-      }
-      *argc -= 1;
-    } else {
-      i++;
-    }
-  }
-  return diary;
-}
-
 int main(int argc, char *argv[], char *envp[]) {
   char *dname = NULL;
   char *filter = NULL;
   char *path = NULL;
   int opt;
+  int show_help = 0;
+
+  /* Save program name before any argv manipulation */
+  prog_name = argv[0];
 
   static struct option long_options[] = {
     {"diary",   required_argument, 0, 'd'},
@@ -196,18 +160,30 @@ int main(int argc, char *argv[], char *envp[]) {
     exit(EXIT_FAILURE);
   }
 
-  /* Save subcommand and shift to its arguments */
+  /* Save subcommand (don't shift argv - keep it for getopt which needs argv[0]) */
   char *subcmd = argv[0];
-  argc--;
-  argv++;
 
-  /* Extract -d option from remaining args (after subcommand) */
-  char *subcmd_diary = extract_diary_option(&argc, argv);
-  if (subcmd_diary)
-    dname = subcmd_diary;
+  /* Reset getopt fully to enable permutation (finds options anywhere in argv) */
+  optind = 0;
+  while ((opt = getopt_long(argc, argv, "d:h", long_options, NULL)) != -1) {
+    switch (opt) {
+    case 'd':
+      dname = optarg;
+      break;
+    case 'h':
+      show_help = 1;
+      break;
+    default:
+      break;
+    }
+  }
 
-  /* Check for help flag in subcommand args */
-  if (has_help_flag(argc, argv)) {
+  /* After getopt, positional args are at argv[optind..argc-1] */
+  argv = &argv[optind];
+  argc = argc - optind;
+
+  /* Show subcommand help if requested */
+  if (show_help) {
     if (strncmp(subcmd, "init", 5) == 0) print_subcommand_help(INIT);
     else if (strncmp(subcmd, "new", 4) == 0) print_subcommand_help(NEW);
     else if (strncmp(subcmd, "list", 5) == 0) print_subcommand_help(LIST);

@@ -15,6 +15,10 @@ void encdiary(int opcl, const char *name, const char *base_path) {
    * The encrypted directory is stored as .<name> in the parent of mount_point
    * e.g., mount_point = /path/to/storage/diary
    *       enc_path    = /path/to/storage/.diary
+   *
+   * Environment variables:
+   *   DRY_ENCFS_PASSWORD - If set, use --extpass to provide password non-interactively
+   *   DRY_NO_UNMOUNT     - If set to "1", skip unmounting (useful for testing)
    */
   char cmd[8192];
   char enc_path[2048];
@@ -55,7 +59,13 @@ void encdiary(int opcl, const char *name, const char *base_path) {
     }
     
     /* mount encrypted filesystem */
-    snprintf(cmd, sizeof(cmd), "encfs %s %s", enc_path, mount_point);
+    const char *extpass = getenv("DRY_ENCFS_PASSWORD");
+    if (extpass != NULL && extpass[0] != '\0') {
+      /* Use --extpass for non-interactive mode (testing/scripting) */
+      snprintf(cmd, sizeof(cmd), "encfs --extpass='echo %s' %s %s", extpass, enc_path, mount_point);
+    } else {
+      snprintf(cmd, sizeof(cmd), "encfs %s %s", enc_path, mount_point);
+    }
     if (system(cmd) != 0) {
       fprintf(stderr, "Error: failed to mount encrypted filesystem\n");
       rmdir(mount_point);
@@ -64,6 +74,12 @@ void encdiary(int opcl, const char *name, const char *base_path) {
   }
   else {
     /* CLOSE: unmount and cleanup */
+    
+    /* Check if unmounting is disabled (for testing) */
+    const char *no_unmount = getenv("DRY_NO_UNMOUNT");
+    if (no_unmount != NULL && strncmp(no_unmount, "1", 2) == 0) {
+      return;
+    }
     
     /* check if mounted */
     snprintf(cmd, sizeof(cmd), "mountpoint -q %s 2>/dev/null", mount_point);
