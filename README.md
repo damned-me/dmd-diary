@@ -84,21 +84,20 @@ DRY is a simple wrapper around a series of CLI operations, written in C because 
 - refactor: general cleanup
 - [x] feat: Open/close diary to manual modify
 - [x] fix: installation (config are exported wrong, diary init fails)
-- fix: help arguments
+- [x] fix: help is not shown when --help or -h
+- [x]improve: CLI, use params to permit permutations (-m "message", -d YYYY-MM-DD) (argp.h)
 - fix: list operations (today tomorrow etc)
 - fix: fix bash completion
 - feat: implement play
 - fix: change defaults for better portability (eg. exa -> ls), also add options to configure it from the configs
 - feat: add diary attachments (dry new attach path)
 - feat: export diary to unencrypted form
-- improve: CLI, use params to permit permutations (-m "message", -d YYYY-MM-DD) (argp.h)
 - feat: more config for user to customize
 - improve: main function and argment parsing modularity
 - improve: chiper enc/dec optimization (modular fs? exclude big files? encfs support?)
 - feat: make encryption optional
 - feat: add a "use" command to temporary select a diary for that terminal session (maybe an env var?)
-- improve:  ensure all commands supports the same interface (command subcommand [diary] [args]). 
-            Looks like list work only with the default diary
+- improve:  ensure all commands supports the same interface (command subcommand `[diary]` `[args]`). Looks like list work only with the default diary
 
 Next steps:
 - feat: add code logging feature
