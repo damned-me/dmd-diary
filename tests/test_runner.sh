@@ -78,7 +78,7 @@ assert_output_contains() {
     local needle="$1"
     local haystack="$2"
     
-    if echo "$haystack" | grep -q "$needle"; then
+    if echo "$haystack" | grep -qF -- "$needle"; then
         return 0
     else
         echo "  Expected output to contain: $needle"
@@ -91,7 +91,7 @@ assert_output_not_contains() {
     local needle="$1"
     local haystack="$2"
     
-    if ! echo "$haystack" | grep -q "$needle"; then
+    if ! echo "$haystack" | grep -qF -- "$needle"; then
         return 0
     else
         echo "  Expected output NOT to contain: $needle"
@@ -226,8 +226,14 @@ test_show_help() {
     local rc=$?
     
     assert_exit_code 0 $rc "exit code" &&
-    assert_output_contains "Show an entry" "$output" &&
-    assert_output_contains "<id>" "$output"
+    assert_output_contains "Show diary entries" "$output" &&
+    assert_output_contains "today" "$output" &&
+    assert_output_contains "yesterday" "$output" &&
+    assert_output_contains "-m, --main" "$output" &&
+    assert_output_contains "--text" "$output" &&
+    assert_output_contains "--head" "$output" &&
+    assert_output_contains "List files only" "$output" &&
+    assert_output_contains "--interleaved" "$output"
 }
 
 test_delete_help() {
@@ -308,16 +314,16 @@ test_show_missing_id() {
     assert_output_contains "Error" "$output"
 }
 
-test_delete_missing_diary() {
+test_delete_missing_id() {
     local output
-    output=$("$DRY" delete someid 2>&1)
+    output=$("$DRY" delete 2>&1)
     local rc=$?
     
     assert_exit_code 1 $rc "exit code" &&
-    assert_output_contains "requires -d" "$output"
+    assert_output_contains "requires" "$output"
 }
 
-test_delete_missing_id() {
+test_delete_with_diary_option() {
     local output
     output=$("$DRY" -d test delete 2>&1)
     local rc=$?
@@ -438,8 +444,8 @@ main() {
         test_new_missing_type \
         test_new_invalid_type \
         test_show_missing_id \
-        test_delete_missing_diary \
         test_delete_missing_id \
+        test_delete_with_diary_option \
         test_list_too_many_args
     
     run_test_suite "Option Parsing" \

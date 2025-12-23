@@ -202,13 +202,14 @@ int open_file_command(char *path, char *cmd) {
   if (cmd != NULL) {
     switch (type) {
     case TEXT:
-      snprintf(cmd, 4096, "%s %s", get_config()->pager, path);
+      snprintf(cmd, 4096, "%s \"%s\"", get_config()->pager, path);
       break;
     case MEDIA:
-      snprintf(cmd, 4096, "%s %s", get_config()->player, path);
+      /* Suppress ffmpeg/player output */
+      snprintf(cmd, 4096, "%s \"%s\" >/dev/null 2>&1", get_config()->player, path);
       break;
     case OTHER:
-      snprintf(cmd, 4096, "xdg-open %s", path);
+      snprintf(cmd, 4096, "xdg-open \"%s\" >/dev/null 2>&1", path);
       break;
     }
   }

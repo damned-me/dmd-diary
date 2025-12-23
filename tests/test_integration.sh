@@ -40,13 +40,21 @@ cleanup() {
     echo ""
     echo -e "${BLUE}Cleaning up...${NC}"
     
-    # Unmount if mounted
-    if [[ $DIARY_MOUNTED -eq 1 ]] || mountpoint -q "$TEST_MOUNT_PATH" 2>/dev/null; then
-        fusermount -u "$TEST_MOUNT_PATH" 2>/dev/null || true
-        sleep 0.5
-    fi
+    # Unset environment variables that prevent unmounting
+    unset DRY_NO_UNMOUNT
     
-    rm -rf "$TEST_TMP"
+    # Unmount if mounted (try multiple times with delays)
+    for i in 1 2 3; do
+        if mountpoint -q "$TEST_MOUNT_PATH" 2>/dev/null; then
+            fusermount -u "$TEST_MOUNT_PATH" 2>/dev/null && break
+            sleep 0.5
+        else
+            break
+        fi
+    done
+    
+    # Remove test directory
+    rm -rf "$TEST_TMP" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -333,15 +341,18 @@ test_show_entry() {
     # First run a command to ensure dry mounts the filesystem
     run_dry_with_diary -d "$TEST_DIARY" list >/dev/null 2>&1 || true
     
-    # Create a test entry with known ID pattern
+    # Create a test entry with known ID pattern using today's date
     local today_path
     today_path=$(date +%Y/%m/%d)
-    local test_file="$TEST_MOUNT_PATH/$today_path/2025-12-23_test"
+    local today_date
+    today_date=$(date +%Y-%m-%d)
+    local test_id="${today_date}_test"
+    local test_file="$TEST_MOUNT_PATH/$today_path/$test_id"
     mkdir -p "$TEST_MOUNT_PATH/$today_path"
     echo "# Test Entry Content" > "$test_file"
     
     local output
-    output=$(run_dry_with_diary -d "$TEST_DIARY" show "2025-12-23_test" 2>&1)
+    output=$(run_dry_with_diary -d "$TEST_DIARY" show "$test_id" 2>&1)
     
     # Should display the content (pager is 'cat')
     echo "$output" | grep -q "Test Entry Content"
@@ -354,6 +365,45 @@ test_explore_runs() {
     
     # Should list directory contents or at least not error badly
     [[ $? -eq 0 ]] || echo "$output" | grep -qv "Error"
+}
+
+test_show_today_multiple() {
+    # Test show with date filter - should show all entries
+    run_dry_with_diary -d "$TEST_DIARY" list >/dev/null 2>&1 || true
+    
+    local today_path
+    today_path=$(date +%Y/%m/%d)
+    mkdir -p "$TEST_MOUNT_PATH/$today_path"
+    
+    # Create both text and "video" entries
+    echo "text entry" > "$TEST_MOUNT_PATH/$today_path/text_only.org"
+    echo "fake video" > "$TEST_MOUNT_PATH/$today_path/test_video.mp4"
+    
+    local output
+    output=$(run_dry_with_diary -d "$TEST_DIARY" show today 2>&1)
+    
+    # Should show count of entries
+    echo "$output" | grep -qi "Showed.*entry\|Showing"
+}
+
+test_show_video_file() {
+    # Test show command with a specific video file
+    run_dry_with_diary -d "$TEST_DIARY" list >/dev/null 2>&1 || true
+    
+    local today_path
+    today_path=$(date +%Y/%m/%d)
+    local today_date
+    today_date=$(date +%Y-%m-%d)
+    mkdir -p "$TEST_MOUNT_PATH/$today_path"
+    
+    # Create a test video file
+    echo "fake video" > "$TEST_MOUNT_PATH/$today_path/${today_date}_testvideo.mp4"
+    
+    local output
+    output=$(run_dry_with_diary -d "$TEST_DIARY" show "${today_date}_testvideo.mp4" 2>&1)
+    
+    # Show should handle the file (player is cat in test config)
+    [[ $? -eq 0 ]] || echo "$output" | grep -qi "testvideo"
 }
 
 test_delete_requires_confirmation() {
@@ -432,6 +482,11 @@ main() {
     run_test "show displays entry content" test_show_entry
     run_test "explore runs file manager" test_explore_runs
     
+    echo ""
+    echo "[Show with Filters]"
+    run_test "show today shows multiple entries" test_show_today_multiple
+    run_test "show handles video files" test_show_video_file
+
     echo ""
     echo "[Delete Operations]"
     run_test "delete shows deleting message" test_delete_requires_confirmation

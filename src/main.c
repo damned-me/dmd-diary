@@ -26,7 +26,7 @@ static void print_help(char *name) {
   printf("COMMANDS\n");
   printf("  init <name> [<path>]  Initialize a new diary\n");
   printf("  new <note|video>      Add a note or video entry\n");
-  printf("  show <id>             Show entry by id\n");
+  printf("  show <id|filter>      Show entries by ID or date filter\n");
   printf("  list [<filter>]       List entries (today, yesterday, date)\n");
   printf("  delete <id>           Delete an entry\n");
   printf("  explore               Open diary in file manager\n");
@@ -50,12 +50,23 @@ static void print_subcommand_help(COMMAND command) {
     printf("  -d, --diary <name>  Diary to use (default from config)\n");
     break;
   case SHOW:
-    printf("Show an entry by its ID\n\n");
-    printf("Usage: %s [-d <diary>] show <id>\n\n", prog_name);
+    printf("Show diary entries\n\n");
+    printf("Usage: %s [-d <diary>] show [OPTIONS] <id|filter>\n\n", prog_name);
     printf("Arguments:\n");
-    printf("  <id>      Entry ID to show\n\n");
+    printf("  <id>      Show a specific entry by ID\n");
+    printf("  today     Show all entries from today\n");
+    printf("  yesterday Show all entries from yesterday\n");
+    printf("  <date>    Show all entries from date (YYYY-MM-DD)\n\n");
     printf("Options:\n");
     printf("  -d, --diary <name>  Diary to use (default from config)\n");
+    printf("  -m, --main          Show only the main diary entry\n");
+    printf("  --text              Show only text entries (skip media)\n");
+    printf("  --head              List files only (no content displayed)\n");
+    printf("  --interleaved       Re-show main entry before each attachment\n\n");
+    printf("When showing multiple entries, they are displayed sequentially:\n");
+    printf("  - Text files open in pager (press q to continue)\n");
+    printf("  - Videos play in video player\n");
+    printf("  - Other files open with default application\n");
     break;
   case LIST:
     printf("List diary entries\n\n");
@@ -67,11 +78,11 @@ static void print_subcommand_help(COMMAND command) {
     break;
   case DELETE:
     printf("Delete an entry from the diary\n\n");
-    printf("Usage: %s -d <diary> delete <id>\n\n", prog_name);
+    printf("Usage: %s [-d <diary>] delete <id>\n\n", prog_name);
     printf("Arguments:\n");
     printf("  <id>      Entry ID to delete\n\n");
     printf("Options:\n");
-    printf("  -d, --diary <name>  Diary to use (required)\n");
+    printf("  -d, --diary <name>  Diary to use (default from config)\n");
     break;
   case EXPLORE:
     printf("Open the diary in the file manager\n\n");
@@ -94,7 +105,7 @@ static void usages(char *name, COMMAND command) {
     break;
   case SHOW:
     fprintf(stderr, "Error: additional arguments required\n");
-    printf("Usage: %s [-d <diary>] show <id>\n", name);
+    printf("Usage: %s [-d <diary>] show <id|today|yesterday|date>\n", name);
     break;
   case NEW:
     fprintf(stderr, "Error: additional arguments required\n");
@@ -122,14 +133,27 @@ int main(int argc, char *argv[], char *envp[]) {
   char *path = NULL;
   int opt;
   int show_help = 0;
+  int show_flags = 0;  /* Flags for show command */
 
   /* Save program name before any argv manipulation */
   prog_name = argv[0];
 
+  /* Long option codes for options without short equivalents */
+  enum {
+    OPT_HEAD = 256,
+    OPT_INTERLEAVED,
+    OPT_TEXT,
+    OPT_MAIN
+  };
+
   static struct option long_options[] = {
-    {"diary",   required_argument, 0, 'd'},
-    {"help",    no_argument,       0, 'h'},
-    {"version", no_argument,       0, 'v'},
+    {"diary",       required_argument, 0, 'd'},
+    {"help",        no_argument,       0, 'h'},
+    {"version",     no_argument,       0, 'v'},
+    {"head",        no_argument,       0, OPT_HEAD},
+    {"interleaved", no_argument,       0, OPT_INTERLEAVED},
+    {"text",        no_argument,       0, OPT_TEXT},
+    {"main",        no_argument,       0, 'm'},
     {0, 0, 0, 0}
   };
 
@@ -165,13 +189,26 @@ int main(int argc, char *argv[], char *envp[]) {
 
   /* Reset getopt fully to enable permutation (finds options anywhere in argv) */
   optind = 0;
-  while ((opt = getopt_long(argc, argv, "d:h", long_options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "d:hm", long_options, NULL)) != -1) {
     switch (opt) {
     case 'd':
       dname = optarg;
       break;
     case 'h':
       show_help = 1;
+      break;
+    case OPT_HEAD:
+      show_flags |= SHOW_FLAG_HEAD;
+      break;
+    case OPT_INTERLEAVED:
+      show_flags |= SHOW_FLAG_INTERLEAVED;
+      break;
+    case OPT_TEXT:
+      show_flags |= SHOW_FLAG_TEXT_ONLY;
+      break;
+    case 'm':
+    case OPT_MAIN:
+      show_flags |= SHOW_FLAG_MAIN_ONLY;
       break;
     default:
       break;
@@ -235,10 +272,10 @@ int main(int argc, char *argv[], char *envp[]) {
     if (argc < 1)
       usage(SHOW);
 
-    diary_show(argv[0], dname);
+    diary_show(argv[0], dname, show_flags);
   } else if (strncmp(subcmd, "delete", 7) == 0) {
-    if (argc < 1 || dname == NULL) {
-      fprintf(stderr, "Error: delete requires -d <diary> and <id>\n");
+    if (argc < 1) {
+      fprintf(stderr, "Error: delete requires <id>\n");
       usage(DELETE);
     }
 

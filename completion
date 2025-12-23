@@ -90,7 +90,22 @@ if [[ -n "$ZSH_VERSION" ]]; then
                             $global_opts \
                             '1:filter:(today yesterday tomorrow)'
                         ;;
-                    show|delete)
+                    show)
+                        local -a entries
+                        entries=(${(f)"$(_dry_get_entry_ids "$diary_name")"})
+                        local -a show_opts
+                        show_opts=(
+                            '(-m --main)'{-m,--main}'[Show only the main diary entry]'
+                            '--text[Show only text entries]'
+                            '--head[Show summary header only]'
+                            '--interleaved[Re-show main entry before each attachment]'
+                        )
+                        _arguments \
+                            $global_opts \
+                            $show_opts \
+                            '1:entry id or filter:(today yesterday tomorrow '"${entries}"')'
+                        ;;
+                    delete)
                         local -a entries
                         entries=(${(f)"$(_dry_get_entry_ids "$diary_name")"})
                         _arguments \
@@ -141,7 +156,17 @@ elif [[ -n "$BASH_VERSION" ]]; then
 
         # Handle current word starting with -
         if [[ "${cur}" == -* ]]; then
-            COMPREPLY=($(compgen -W "-d --diary -h --help -v --version" -- "${cur}"))
+            # Check if we're in show subcommand for extra options
+            local in_show=0
+            for ((i=1; i < COMP_CWORD; i++)); do
+                [[ "${COMP_WORDS[i]}" == "show" ]] && in_show=1 && break
+            done
+            
+            if [[ $in_show -eq 1 ]]; then
+                COMPREPLY=($(compgen -W "-d --diary -h --help -m --main --text --head --interleaved" -- "${cur}"))
+            else
+                COMPREPLY=($(compgen -W "-d --diary -h --help -v --version" -- "${cur}"))
+            fi
             return
         fi
 
@@ -170,7 +195,11 @@ elif [[ -n "$BASH_VERSION" ]]; then
             list)
                 COMPREPLY=($(compgen -W "today yesterday tomorrow" -- "${cur}"))
                 ;;
-            show|delete)
+            show)
+                local entries=$(_dry_get_entry_ids "${diary_name}")
+                COMPREPLY=($(compgen -W "today yesterday tomorrow ${entries}" -- "${cur}"))
+                ;;
+            delete)
                 local entries=$(_dry_get_entry_ids "${diary_name}")
                 [[ -n "${entries}" ]] && COMPREPLY=($(compgen -W "${entries}" -- "${cur}"))
                 ;;
