@@ -116,7 +116,7 @@ static void usages(char *name, COMMAND command) {
 /* Check if any argument is --help or -h */
 static int has_help_flag(int argc, char *argv[]) {
   for (int i = 0; i < argc; i++) {
-    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
+    if (strncmp(argv[i], "--help", 7) == 0 || strncmp(argv[i], "-h", 3) == 0)
       return 1;
   }
   return 0;
@@ -128,7 +128,7 @@ static char *extract_diary_option(int *argc, char *argv[]) {
   int i = 0;
   
   while (i < *argc) {
-    if ((strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--diary") == 0) && i + 1 < *argc) {
+    if ((strncmp(argv[i], "-d", 3) == 0 || strncmp(argv[i], "--diary", 8) == 0) && i + 1 < *argc) {
       diary = argv[i + 1];
       /* Remove -d and its argument from argv */
       for (int j = i; j < *argc - 2; j++) {
@@ -208,19 +208,19 @@ int main(int argc, char *argv[], char *envp[]) {
 
   /* Check for help flag in subcommand args */
   if (has_help_flag(argc, argv)) {
-    if (strcmp(subcmd, "init") == 0) print_subcommand_help(INIT);
-    else if (strcmp(subcmd, "new") == 0) print_subcommand_help(NEW);
-    else if (strcmp(subcmd, "list") == 0) print_subcommand_help(LIST);
-    else if (strcmp(subcmd, "show") == 0) print_subcommand_help(SHOW);
-    else if (strcmp(subcmd, "delete") == 0) print_subcommand_help(DELETE);
-    else if (strcmp(subcmd, "explore") == 0) print_subcommand_help(EXPLORE);
+    if (strncmp(subcmd, "init", 5) == 0) print_subcommand_help(INIT);
+    else if (strncmp(subcmd, "new", 4) == 0) print_subcommand_help(NEW);
+    else if (strncmp(subcmd, "list", 5) == 0) print_subcommand_help(LIST);
+    else if (strncmp(subcmd, "show", 5) == 0) print_subcommand_help(SHOW);
+    else if (strncmp(subcmd, "delete", 7) == 0) print_subcommand_help(DELETE);
+    else if (strncmp(subcmd, "explore", 8) == 0) print_subcommand_help(EXPLORE);
     else print_help("dry");
     exit(EXIT_SUCCESS);
   }
 
   config_load();
 
-  if (strcmp(subcmd, "init") == 0) {
+  if (strncmp(subcmd, "init", 5) == 0) {
     if (argc < 1) {
       usage(INIT);
     } else {
@@ -229,16 +229,16 @@ int main(int argc, char *argv[], char *envp[]) {
 
       diary_init(argv[0], path);
     }
-  } else if (strcmp(subcmd, "new") == 0) {
+  } else if (strncmp(subcmd, "new", 4) == 0) {
     if (argc < 1)
       usage(NEW);
 
     /* Check type */
     char type = 0;
 
-    if (strcmp(argv[0], "video") == 0)
+    if (strncmp(argv[0], "video", 6) == 0)
       type = 'v';
-    else if (strcmp(argv[0], "note") == 0)
+    else if (strncmp(argv[0], "note", 5) == 0)
       type = 'n';
 
     /* Call new if type is set */
@@ -247,7 +247,7 @@ int main(int argc, char *argv[], char *envp[]) {
     else
       fprintf(stderr, "Error: wrong type (use 'video' or 'note')\n");
 
-  } else if (strcmp(subcmd, "list") == 0) {
+  } else if (strncmp(subcmd, "list", 5) == 0) {
     if (argc > 1)
       usage(LIST);
 
@@ -255,19 +255,19 @@ int main(int argc, char *argv[], char *envp[]) {
       filter = argv[0];
 
     diary_list(dname, filter);
-  } else if (strcmp(subcmd, "show") == 0) {
+  } else if (strncmp(subcmd, "show", 5) == 0) {
     if (argc < 1)
       usage(SHOW);
 
     diary_show(argv[0], dname);
-  } else if (strcmp(subcmd, "delete") == 0) {
+  } else if (strncmp(subcmd, "delete", 7) == 0) {
     if (argc < 1 || dname == NULL) {
       fprintf(stderr, "Error: delete requires -d <diary> and <id>\n");
       usage(DELETE);
     }
 
     diary_delete(argv[0], dname);
-  } else if (strcmp(subcmd, "explore") == 0) {
+  } else if (strncmp(subcmd, "explore", 8) == 0) {
     diary_explore(dname);
   } else {
     fprintf(stderr, "Error: unknown command '%s'\n", subcmd);

@@ -40,28 +40,28 @@ static char *l2_header_fmt(FORMAT fmt, char *fstring) {
 }
 
 int get_text_path_by_name(const char *name, char *path) {
-  char fmt[1024];
-  char tmp[1024];
+  char fmt[128];
+  char tmp[2048];
   char *ext = ".org";
   get_path_by_name(name, tmp);
 
   get_time(fmt, "%%s/%Y/%m/%d/%Y-%m-%d");
 
-  sprintf(path, fmt, tmp);
+  snprintf(path, 2048, fmt, tmp);
   strcat(path, ext);
 
   return 0;
 }
 
 int get_video_path_by_name(const char *name, char *path) {
-  char tmp[1024];
-  char fmt[1024];
+  char tmp[2048];
+  char fmt[128];
   char *ext = ".mkv";
   get_path_by_name(name, tmp);
 
   get_time(fmt, "%%s/%Y/%m/%d/%Y-%m-%d_%H-%M");
 
-  sprintf(path, fmt, tmp);
+  snprintf(path, 2048, fmt, tmp);
   strcat(path, ext);
 
   return 0;
@@ -71,13 +71,13 @@ int make_directory_tree(const char *name) {
   /*
    * Create directory path: /path/to/diary/yyyy/mm/dd/
    */
-  char mkdr[1024];
-  char subdir[1024];
-  char path[1024];
+  char mkdr[4096];
+  char subdir[64];
+  char path[2048];
 
   get_path_by_name(name, path);
   get_time(subdir, "%Y/%m/%d");
-  sprintf(mkdr, "mkdir -p %s/%s", path, subdir);
+  snprintf(mkdr, sizeof(mkdr), "mkdir -p %s/%s", path, subdir);
   
   int result = system(mkdr);
   if (result != 0) {
@@ -128,7 +128,7 @@ void set_text_file_header(const char *name, FORMAT fmt) {
 }
 
 int get_text_command(const char *name, char *cmd) {
-  char path[1024];
+  char path[2048];
   
   if (get_config()->editor == NULL) {
     fprintf(stderr, "Error: text_editor not configured\n");
@@ -137,11 +137,11 @@ int get_text_command(const char *name, char *cmd) {
   }
   
   get_text_path_by_name(name, path);
-  return sprintf(cmd, "%s %s", get_config()->editor, path);
+  return snprintf(cmd, 4096, "%s %s", get_config()->editor, path);
 }
 
 int get_video_command(const char *name, char *cmd) {
-  char path[1024];
+  char path[2048];
   
   if (get_config()->player == NULL) {
     fprintf(stderr, "Error: video_player not configured\n");
@@ -171,21 +171,21 @@ int get_video_command(const char *name, char *cmd) {
     "-f xv display";
 
   get_video_path_by_name(name, path);
-  sprintf(cmd, ffmpeg, path);
+  snprintf(cmd, 4096, ffmpeg, path);
 
   return 0;
 }
 
 FILE_TYPE get_file_type(char *path) {
   FILE_TYPE type;
-  char c2[1024];
-  char c3[1024];
-  char c4[1024];
+  char c2[4096];
+  char c3[4096];
+  char c4[4096];
 
   /* Check file type */
-  sprintf(c2, "file %s | grep ASCII > /dev/null", path);
-  sprintf(c4, "file %s | grep Unicode > /dev/null", path);
-  sprintf(c3, "file %s | grep Matroska > /dev/null", path);
+  snprintf(c2, sizeof(c2), "file %s | grep ASCII > /dev/null", path);
+  snprintf(c4, sizeof(c4), "file %s | grep Unicode > /dev/null", path);
+  snprintf(c3, sizeof(c3), "file %s | grep Matroska > /dev/null", path);
 
   if (system(c2) == 0 || system(c4) == 0)
     type = TEXT;
@@ -202,13 +202,13 @@ int open_file_command(char *path, char *cmd) {
   if (cmd != NULL) {
     switch (type) {
     case TEXT:
-      sprintf(cmd, "less %s", path);
+      snprintf(cmd, 4096, "%s %s", get_config()->pager, path);
       break;
     case MEDIA:
-      sprintf(cmd, "%s %s", get_config()->player, path);
+      snprintf(cmd, 4096, "%s %s", get_config()->player, path);
       break;
     case OTHER:
-      sprintf(cmd, "xdg-open %s", path);
+      snprintf(cmd, 4096, "xdg-open %s", path);
       break;
     }
   }

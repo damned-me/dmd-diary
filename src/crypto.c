@@ -16,9 +16,9 @@ void encdiary(int opcl, const char *name, const char *base_path) {
    * e.g., mount_point = /path/to/storage/diary
    *       enc_path    = /path/to/storage/.diary
    */
-  char cmd[2048];
-  char enc_path[1024];
-  char mount_point[1024];
+  char cmd[8192];
+  char enc_path[2048];
+  char mount_point[2048];
   
   if (name == NULL)
     name = get_config()->name;
@@ -27,8 +27,8 @@ void encdiary(int opcl, const char *name, const char *base_path) {
     base_path = get_config()->path;
 
   /* Construct mount_point and enc_path */
-  sprintf(mount_point, "%s/%s", base_path, name);
-  sprintf(enc_path, "%s/.%s", base_path, name);
+  snprintf(mount_point, sizeof(mount_point), "%s/%s", base_path, name);
+  snprintf(enc_path, sizeof(enc_path), "%s/.%s", base_path, name);
 
   if (!opcl) {
     /* OPEN: decrypt and mount */
@@ -41,7 +41,7 @@ void encdiary(int opcl, const char *name, const char *base_path) {
     }
     
     /* check if already mounted */
-    sprintf(cmd, "mountpoint -q %s 2>/dev/null", mount_point);
+    snprintf(cmd, sizeof(cmd), "mountpoint -q %s 2>/dev/null", mount_point);
     if (system(cmd) == 0) {
       /* already mounted, nothing to do */
       return;
@@ -55,7 +55,7 @@ void encdiary(int opcl, const char *name, const char *base_path) {
     }
     
     /* mount encrypted filesystem */
-    sprintf(cmd, "encfs %s %s", enc_path, mount_point);
+    snprintf(cmd, sizeof(cmd), "encfs %s %s", enc_path, mount_point);
     if (system(cmd) != 0) {
       fprintf(stderr, "Error: failed to mount encrypted filesystem\n");
       rmdir(mount_point);
@@ -66,7 +66,7 @@ void encdiary(int opcl, const char *name, const char *base_path) {
     /* CLOSE: unmount and cleanup */
     
     /* check if mounted */
-    sprintf(cmd, "mountpoint -q %s 2>/dev/null", mount_point);
+    snprintf(cmd, sizeof(cmd), "mountpoint -q %s 2>/dev/null", mount_point);
     if (system(cmd) != 0) {
       /* not mounted, just cleanup */
       rmdir(mount_point);
@@ -74,7 +74,7 @@ void encdiary(int opcl, const char *name, const char *base_path) {
     }
     
     /* unmount */
-    sprintf(cmd, "fusermount -u %s", mount_point);
+    snprintf(cmd, sizeof(cmd), "fusermount -u %s", mount_point);
     if (system(cmd) != 0) {
       fprintf(stderr, "Warning: failed to unmount %s\n", mount_point);
     }

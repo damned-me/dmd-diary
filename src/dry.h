@@ -15,10 +15,13 @@
 
 /* Configuration structure */
 typedef struct {
-  const char *name;    /* default diary name */
-  const char *path;    /* storage directory path */
-  const char *editor;  /* text editor command */
-  const char *player;  /* video player command */
+  const char *name;         /* default diary name */
+  const char *path;         /* storage directory path */
+  const char *editor;       /* text editor command */
+  const char *player;       /* video player command */
+  const char *list_cmd;     /* directory listing command */
+  const char *file_manager; /* file manager/explorer command */
+  const char *pager;        /* pager for viewing text files */
 } CONFIG;
 
 /* Command types for CLI */

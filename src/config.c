@@ -68,8 +68,6 @@ void get_ref_path(char *path) {
 
 int config_load(void) {
   config_t cfg;
-  config_setting_t *setting;
-  const char *str;
   conf = (CONFIG *) calloc(1, sizeof(CONFIG));
 
   config_init(&cfg);
@@ -84,22 +82,34 @@ int config_load(void) {
     return (EXIT_FAILURE);
   }
 
+  /* Required settings */
   if(!config_lookup_string(&cfg, "default_diary", &conf->name))
     fprintf(stderr, "No 'default_diary' setting in configuration file.\n");
-  if (!config_lookup_string(&cfg, "text_editor", &conf->editor))
-    fprintf(stderr, "No 'text_editor' setting in configuration file.\n");
-  if(!config_lookup_string(&cfg, "video_player", &conf->player))
-    fprintf(stderr, "No 'video_player' setting in configuration file.\n");
   
   const char *config_path;
   if(!config_lookup_string(&cfg, "default_dir", &config_path)) {
     fprintf(stderr, "No 'default_dir' setting in configuration file.\n");
   } else {
-    /* Expand tilde in path and store it */
     char *expanded_path = (char *)malloc(1024);
     expand_tilde(config_path, expanded_path);
     conf->path = expanded_path;
   }
+
+  /* Optional settings with portable defaults */
+  if (!config_lookup_string(&cfg, "text_editor", &conf->editor))
+    conf->editor = "vi";
+  
+  if(!config_lookup_string(&cfg, "video_player", &conf->player))
+    conf->player = "xdg-open";
+  
+  if(!config_lookup_string(&cfg, "list_command", &conf->list_cmd))
+    conf->list_cmd = "ls -lah";
+  
+  if(!config_lookup_string(&cfg, "file_manager", &conf->file_manager))
+    conf->file_manager = "xdg-open";
+  
+  if(!config_lookup_string(&cfg, "pager", &conf->pager))
+    conf->pager = "less";
 
   return(EXIT_SUCCESS);
 }

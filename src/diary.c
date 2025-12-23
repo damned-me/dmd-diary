@@ -15,10 +15,10 @@ void diary_init(const char *name, const char *dpath) {
    * 3. Initialize encfs
    * 4. Add reference to diaries.ref
    */
-  char fref[1024];
-  char path[1024];
-  char enc_path[1024];
-  char cmd[1024];
+  char fref[2048];
+  char path[2048];
+  char enc_path[2048];
+  char cmd[8192];
   
   if (dpath == NULL)
     dpath = get_config()->path;
@@ -29,11 +29,11 @@ void diary_init(const char *name, const char *dpath) {
     exit(EXIT_FAILURE);
   }
 
-  sprintf(path, "%s/%s", dpath, name);
-  sprintf(enc_path, "%s/.%s", dpath, name);
+  snprintf(path, sizeof(path), "%s/%s", dpath, name);
+  snprintf(enc_path, sizeof(enc_path), "%s/.%s", dpath, name);
   
   /* create parent storage directory if needed */
-  sprintf(cmd, "mkdir -p -m 0700 %s", dpath);
+  snprintf(cmd, sizeof(cmd), "mkdir -p -m 0700 %s", dpath);
   if (system(cmd) != 0) {
     fprintf(stderr, "Error: failed to create storage directory %s\n", dpath);
     exit(EXIT_FAILURE);
@@ -52,7 +52,7 @@ void diary_init(const char *name, const char *dpath) {
   }
 
   /* create encrypted filesystem */
-  sprintf(cmd, "encfs --paranoia %s %s", enc_path, path);
+  snprintf(cmd, sizeof(cmd), "encfs --paranoia %s %s", enc_path, path);
   if (system(cmd) != 0) {
     fprintf(stderr, "Error: failed to create encrypted filesystem\n");
     /* cleanup on failure */
@@ -124,11 +124,11 @@ void diary_new(char type, const char *name) {
 }
 
 void diary_list(const char *name, char *filter) {
-  char cmd[1024];
-  char dpath[1024];
-  char path[1024];
+  char cmd[16384];
+  char dpath[4096];
+  char path[8192];
 
-  char *c = "exa -hal %s";
+  const char *list_cmd = get_config()->list_cmd;
 
   if (name == NULL)
     name = get_config()->name;
@@ -146,15 +146,15 @@ void diary_list(const char *name, char *filter) {
   if (filter == NULL) {
     /* No filter: list entire diary */
     use_filter_path = 0;
-  } else if (strcmp(filter, "today") == 0) {
+  } else if (strncmp(filter, "today", 6) == 0) {
     get_time(tme, "%Y/%m/%d");
-  } else if (strcmp(filter, "yesterday") == 0) {
+  } else if (strncmp(filter, "yesterday", 10) == 0) {
     time_t now = time(NULL);
     struct tm *ts = localtime(&now);
     ts->tm_mday--;
     mktime(ts);
     strftime(tme, sizeof(tme), "%Y/%m/%d", ts);
-  } else if (strcmp(filter, "tomorrow") == 0) {
+  } else if (strncmp(filter, "tomorrow", 9) == 0) {
     time_t now = time(NULL);
     struct tm *ts = localtime(&now);
     ts->tm_mday++;
@@ -171,7 +171,7 @@ void diary_list(const char *name, char *filter) {
   }
 
   if (use_filter_path) {
-    sprintf(path, "%s/%s", dpath, tme);
+    snprintf(path, sizeof(path), "%s/%s", dpath, tme);
 
     /* Check if path exists */
     if (!do_file_exist(path)) {
@@ -184,7 +184,7 @@ void diary_list(const char *name, char *filter) {
     strcpy(path, dpath);
   }
 
-  sprintf(cmd, c, path);
+  snprintf(cmd, sizeof(cmd), "%s %s", list_cmd, path);
 
   system(cmd);
 
@@ -192,9 +192,9 @@ void diary_list(const char *name, char *filter) {
 }
 
 void diary_show(char *id, const char *name) {
-  char dpath[1024];
-  char path[1024];
-  char cmd[1024];
+  char dpath[4096];
+  char path[8192];
+  char cmd[8192];
 
   if (name == NULL)
     name = get_config()->name;
@@ -207,15 +207,16 @@ void diary_show(char *id, const char *name) {
   encdiary(0, name, get_config()->path);
 
   /* Parse id to path (convert - to /, stop at . or _) */
-  char ch[1024];
+  char ch[256];
   char *c = ch;
-  strncpy(ch, id, 1024);
+  strncpy(ch, id, sizeof(ch) - 1);
+  ch[sizeof(ch) - 1] = '\0';
   while (*c++) {
     if (*c == '-') *c = '/';
     if (*c == '.' || *c == '_') *c = '\0';
   }
 
-  sprintf(path, "%s/%s/%s", dpath, ch, id);
+  snprintf(path, sizeof(path), "%s/%s/%s", dpath, ch, id);
 
   /* Check if file exists */
   if (!do_file_exist(path)) {
@@ -232,10 +233,10 @@ void diary_show(char *id, const char *name) {
 }
 
 void diary_delete(char *id, const char *name) {
-  char dpath[1024];
-  char path[1024];
-  char cmd[1024];
-  char ch[1024];
+  char dpath[4096];
+  char path[8192];
+  char cmd[16384];
+  char ch[256];
 
   if (name == NULL)
     name = get_config()->name;
@@ -249,13 +250,14 @@ void diary_delete(char *id, const char *name) {
 
   /* Parse id to path */
   char *c = ch;
-  strncpy(ch, id, 1024);
+  strncpy(ch, id, sizeof(ch) - 1);
+  ch[sizeof(ch) - 1] = '\0';
   while (*c++) {
     if (*c == '-') *c = '/';
     if (*c == '.' || *c == '_') *c = '\0';
   }
 
-  sprintf(path, "%s/%s/%s", dpath, ch, id);
+  snprintf(path, sizeof(path), "%s/%s/%s", dpath, ch, id);
 
   /* Check if file exists */
   if (!do_file_exist(path)) {
@@ -266,15 +268,15 @@ void diary_delete(char *id, const char *name) {
 
   printf("Deleting %s\n", path);
 
-  sprintf(cmd, "rm %s", path);
+  snprintf(cmd, sizeof(cmd), "%s %s", get_config()->file_manager, path);
 
   system(cmd);
   encdiary(1, name, get_config()->path);
 }
 
 void diary_explore(const char *name) {
-  char path[1024];
-  char cmd[1024];
+  char path[4096];
+  char cmd[8192];
 
   if (name == NULL)
     name = get_config()->name;
@@ -293,7 +295,7 @@ void diary_explore(const char *name) {
     exit(EXIT_FAILURE);
   }
 
-  sprintf(cmd, "ranger %s", path);
+  snprintf(cmd, sizeof(cmd), "%s %s", get_config()->file_manager, path);
 
   /* Display files */
   system(cmd);

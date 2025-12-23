@@ -31,12 +31,18 @@ dry delete id/date/span [<path>] # delete entry by id
 
 ## DEPENDENCIES
 
+**Required:**
 - libconfig
-- ffmpeg
 - encfs
-- less
-- exa
-- ranger
+- xdg-utils (for xdg-open)
+
+**Optional (for video recording):**
+- ffmpeg
+
+**Optional (configurable alternatives):**
+- pager: less, more, cat (default: less)
+- file manager: ranger, nautilus, dolphin (default: xdg-open)
+- list command: exa, lsd, ls (default: ls -lah)
 
 ## INSTALLATION
 
@@ -65,10 +71,15 @@ Possible config paths (can have multiple config files)
 - `/etc/dry.yml`
 
 ```
-default_diary = "diary";
-text_editor = "emacsclient -t";
-video_player = "mpv";
-default_dir = "/home/$USER/.dry/storage"; # this path must to be absolute
+default_diary = "diary"
+default_dir = "/home/$USER/.dry/storage"  # this path must be absolute
+
+# Optional settings (defaults shown)
+text_editor = "vi"
+video_player = "xdg-open"
+list_command = "ls -lah"
+file_manager = "xdg-open"
+pager = "less"
 ```
 
 ## INTERNALS
@@ -81,21 +92,21 @@ DRY is a simple wrapper around a series of CLI operations, written in C because 
 - [x] fix: exit if encfs fails to open properly
 - [x] fix: folder managing
 - [x] fix: ffmpeg not properly initialize webcam
-- refactor: general cleanup
+- [x] refactor: general cleanup
 - [x] feat: Open/close diary to manual modify
 - [x] fix: installation (config are exported wrong, diary init fails)
 - [x] fix: help is not shown when --help or -h
-- [x]improve: CLI, use params to permit permutations (-m "message", -d YYYY-MM-DD) (argp.h)
+- [x] improve: CLI, use params to permit permutations (-m "message", -d YYYY-MM-DD) (argp.h)
 - [x] fix: list operations (today tomorrow etc)
-- fix: fix bash completion
-- feat: implement play
-- fix: change defaults for better portability (eg. exa -> ls), also add options to configure it from the configs
-- feat: add diary attachments (dry new attach path)
-- feat: export diary to unencrypted form
-- feat: more config for user to customize
+- [x] fix: fix bash completion
+- [x] fix: change defaults for better portability (eg. exa -> ls), also add options to configure it from the configs
 - improve: main function and argment parsing modularity
 - improve: chiper enc/dec optimization (modular fs? exclude big files? encfs support?)
+- feat: implement play
+- feat: add diary attachments (dry new attach path)
+- feat: export diary to unencrypted form
 - feat: make encryption optional
+- feat: more config for user to customize
 - feat: add a "use" command to temporary select a diary for that terminal session (maybe an env var?)
 - improve:  ensure all commands supports the same interface (command subcommand `[diary]` `[args]`). Looks like list work only with the default diary
 
