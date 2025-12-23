@@ -1,0 +1,281 @@
+/*
+ * diary.c - Diary operations implementation
+ */
+#include "diary.h"
+#include "config.h"
+#include "crypto.h"
+#include "entry.h"
+#include "utils.h"
+
+void diary_init(const char *name, const char *dpath) {
+  /*
+   * Initialize a new encrypted diary:
+   * 1. Create encrypted source directory
+   * 2. Create mount point
+   * 3. Initialize encfs
+   * 4. Add reference to diaries.ref
+   */
+  char fref[1024];
+  char path[1024];
+  char enc_path[1024];
+  char cmd[1024];
+  
+  if (dpath == NULL)
+    dpath = get_config()->path;
+
+  /* check if already exist */
+  if (!get_path_by_name(name, path)) {
+    printf("Diary already exists at %s\n", path);
+    exit(EXIT_FAILURE);
+  }
+
+  sprintf(path, "%s/%s", dpath, name);
+  sprintf(enc_path, "%s/.%s", dpath, name);
+  
+  /* create parent storage directory if needed */
+  sprintf(cmd, "mkdir -p -m 0700 %s", dpath);
+  if (system(cmd) != 0) {
+    fprintf(stderr, "Error: failed to create storage directory %s\n", dpath);
+    exit(EXIT_FAILURE);
+  }
+  
+  /* create encrypted source directory */
+  if (mkdir(enc_path, 0700) != 0 && errno != EEXIST) {
+    fprintf(stderr, "Error: failed to create directory %s: %s\n", enc_path, strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+  
+  /* create mount point */
+  if (mkdir(path, 0700) != 0 && errno != EEXIST) {
+    fprintf(stderr, "Error: failed to create directory %s: %s\n", path, strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
+  /* create encrypted filesystem */
+  sprintf(cmd, "encfs --paranoia %s %s", enc_path, path);
+  if (system(cmd) != 0) {
+    fprintf(stderr, "Error: failed to create encrypted filesystem\n");
+    /* cleanup on failure */
+    rmdir(path);
+    rmdir(enc_path);
+    exit(EXIT_FAILURE);
+  }
+
+  /* add reference to diary to ref file */
+  get_ref_path(fref);
+  FILE *fd = fopen(fref, "a");
+  if (fd == NULL) {
+    fprintf(stderr, "Error: failed to open reference file %s\n", fref);
+    exit(EXIT_FAILURE);
+  }
+  fprintf(fd, "%s : %s\n", name, path);
+  fclose(fd);
+
+  printf("Created new diary %s at %s\n", name, path);
+
+  /* unmount after initialization */
+  encdiary(1, name, dpath);
+}
+
+void diary_new(char type, const char *name) {
+  FORMAT fmt = ORG;
+  char cmd[1024];
+  char path[1024];
+
+  if (name == NULL)
+    name = get_config()->name;
+
+  /* check if diary exists */
+  if (get_path_by_name(name, path) != 0) {
+    printf("Error: can't find diary %s\n", name);
+    exit(EXIT_FAILURE);
+  }
+
+  /* decrypt diary */
+  encdiary(0, name, get_config()->path);
+
+  /* create directory tree */
+  make_directory_tree(name);
+
+  /* create entry */
+  printf("Creating new %s\n", type == 'v' ? "video" : "note");
+
+  set_text_file_header(name, fmt);
+
+  if (type == 'v') {
+    get_video_command(name, cmd);
+
+    get_text_path_by_name(name, path);
+
+    FILE *fd = fopen(path, "a");
+    fprintf(fd, "file:%s\n", path);
+    fclose(fd);
+  }
+  else if (type == 'n') {
+    get_text_command(name, cmd);
+  }
+
+  /* Execute */
+  system(cmd);
+  printf("Written %s\n", "output");
+
+  /* encrypt diary */
+  encdiary(1, name, get_config()->path);
+}
+
+void diary_list(const char *name, char *filter) {
+  char cmd[1024];
+  char dpath[1024];
+  char path[1024];
+
+  char *c = "exa -hal %s";
+
+  if (name == NULL)
+    name = get_config()->name;
+
+  if (get_path_by_name(name, dpath)) {
+    printf("Error: can't find diary %s\n", name);
+    exit(EXIT_SUCCESS);
+  }
+
+  encdiary(0, name, get_config()->path);
+
+  char tme[26];
+  get_time(tme, "%Y/%m/%d");
+
+  if (filter != NULL && strcmp(filter, "yesterday") == 0) {
+    time_t now;
+    struct tm *ts;
+
+    now = time(NULL);
+    ts = localtime(&now);
+    ts->tm_mday--;
+    mktime(ts); /* Normalise ts */
+    strftime(tme, sizeof(tme), "%Y/%m/%d", ts);
+  }
+
+  sprintf(path, "%s/%s", dpath, tme);
+
+  /* Check if file exists */
+  if (!do_file_exist(path)) {
+    printf("Error: no entry for %s in %s\n", filter, path);
+
+    encdiary(1, name, get_config()->path);
+    exit(EXIT_FAILURE);
+  }
+
+  sprintf(cmd, c, path);
+
+  system(cmd);
+
+  encdiary(1, name, get_config()->path);
+}
+
+void diary_show(char *id, const char *name) {
+  char dpath[1024];
+  char path[1024];
+  char cmd[1024];
+
+  if (name == NULL)
+    name = get_config()->name;
+
+  if (get_path_by_name(name, dpath)) {
+    printf("Error: can't find diary %s", name);
+    exit(EXIT_FAILURE);
+  }
+
+  encdiary(0, name, get_config()->path);
+
+  /* Parse id to path (convert - to /, stop at . or _) */
+  char ch[1024];
+  char *c = ch;
+  strncpy(ch, id, 1024);
+  while (*c++) {
+    if (*c == '-') *c = '/';
+    if (*c == '.' || *c == '_') *c = '\0';
+  }
+
+  sprintf(path, "%s/%s/%s", dpath, ch, id);
+
+  /* Check if file exists */
+  if (!do_file_exist(path)) {
+    printf("Error: file not found %s\n", path);
+    encdiary(1, name, get_config()->path);
+    exit(EXIT_FAILURE);
+  }
+
+  open_file_command(path, cmd);
+
+  /* Display file */
+  system(cmd);
+  encdiary(1, name, get_config()->path);
+}
+
+void diary_delete(char *id, const char *name) {
+  char dpath[1024];
+  char path[1024];
+  char cmd[1024];
+  char ch[1024];
+
+  if (name == NULL)
+    name = get_config()->name;
+
+  if (get_path_by_name(name, dpath)) {
+    printf("Error: can't find diary %s", name);
+    exit(EXIT_FAILURE);
+  }
+
+  encdiary(0, name, get_config()->path);
+
+  /* Parse id to path */
+  char *c = ch;
+  strncpy(ch, id, 1024);
+  while (*c++) {
+    if (*c == '-') *c = '/';
+    if (*c == '.' || *c == '_') *c = '\0';
+  }
+
+  sprintf(path, "%s/%s/%s", dpath, ch, id);
+
+  /* Check if file exists */
+  if (!do_file_exist(path)) {
+    printf("Error: file not found %s\n", path);
+    encdiary(1, name, get_config()->path);
+    exit(EXIT_FAILURE);
+  }
+
+  printf("Deleting %s\n", path);
+
+  sprintf(cmd, "rm %s", path);
+
+  system(cmd);
+  encdiary(1, name, get_config()->path);
+}
+
+void diary_explore(const char *name) {
+  char path[1024];
+  char cmd[1024];
+
+  if (name == NULL)
+    name = get_config()->name;
+
+  if (get_path_by_name(name, path)) {
+    printf("Error: can't find diary %s", name);
+    exit(EXIT_FAILURE);
+  }
+
+  encdiary(0, name, get_config()->path);
+
+  /* Check if file exists */
+  if (!do_file_exist(path)) {
+    printf("Error: dir not found %s\n", path);
+    encdiary(1, name, get_config()->path);
+    exit(EXIT_FAILURE);
+  }
+
+  sprintf(cmd, "ranger %s", path);
+
+  /* Display files */
+  system(cmd);
+  encdiary(1, name, get_config()->path);
+}

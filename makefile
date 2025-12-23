@@ -1,11 +1,16 @@
 NAME=dry
 CC=gcc
 RM=rm
-RMARGS =-rf
-obj_files=main.o
-src_files=main.c
-cflgs=`pkg-config --cflags libconfig`
-libs=`pkg-config --libs libconfig`
+RMARGS=-rf
+
+# Source files
+SRCDIR=src
+SOURCES=$(SRCDIR)/main.c $(SRCDIR)/utils.c $(SRCDIR)/config.c $(SRCDIR)/crypto.c $(SRCDIR)/entry.c $(SRCDIR)/diary.c
+OBJECTS=$(patsubst $(SRCDIR)/%.c,.build/obj/%.o,$(SOURCES))
+
+# Compiler flags
+CFLAGS=-Wall -I$(SRCDIR) `pkg-config --cflags libconfig`
+LIBS=`pkg-config --libs libconfig`
 
 all: $(NAME)
 .PHONY: all
@@ -17,23 +22,22 @@ install: all
 	cp .build/$(NAME) /bin/$(NAME)
 	chmod +x /bin/$(NAME)
 
-uninstall: all
-	rm /bin/$(NAME)
-	rm /etc/dry.conf
-	rm /etc/bash_completion.d/dry
+uninstall:
+	rm -f /bin/$(NAME)
+	rm -f /etc/dry/dry.conf
+	rm -f /etc/bash_completion.d/dry
 
 run: all
 	.build/$(NAME)
 
-$(NAME): main.o
-	$(CC) $(cflgs) .build/obj/$< -o .build/$@ $(libs)
+$(NAME): $(OBJECTS)
+	$(CC) $(OBJECTS) -o .build/$@ $(LIBS)
 
-%.o : %.c bdir
-	$(CC)  -c $< -o .build/obj/$@
+.build/obj/%.o: $(SRCDIR)/%.c | bdir
+	$(CC) $(CFLAGS) -c $< -o $@
 
 bdir:
-	if [ ! -d ".build" ]; then mkdir .build; fi
-	if [ ! -d ".build/obj" ]; then mkdir .build/obj; fi
+	@mkdir -p .build/obj
 
 .PHONY: clean
 clean:
